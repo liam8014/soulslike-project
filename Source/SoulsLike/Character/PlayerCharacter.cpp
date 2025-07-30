@@ -26,7 +26,6 @@ APlayerCharacter::APlayerCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 
 	bUseControllerRotationYaw = false; // 컨트롤러 회전(Yaw) 사용하지 않음
-
 	// 이동 방향으로 자동 회전
 	if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
 	{
@@ -69,6 +68,7 @@ void APlayerCharacter::BeginPlay()
 	FollowCamera = FindComponentByClass<UCameraComponent>();
 }
 
+// Move 입력 시 호출되는 함수
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -84,6 +84,7 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 	}
 }
 
+// Look 입력 시 호출되는 함수
 void APlayerCharacter::Look(const FInputActionValue &Value)
 {
 	if (!bIsFocusing)
@@ -213,11 +214,23 @@ void APlayerCharacter::ToogleFocus()
 	{
 		bIsFocusing = false;
 		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Hidden);
+
+		bUseControllerRotationYaw = false; // 컨트롤러 회전 사용하지 않음
+		if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
+		{
+			MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전
+		}
 	}
 	else if (SearchFocusTarget())
 	{
 		bIsFocusing = true;
 		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Visible);
+
+		bUseControllerRotationYaw = true; // 컨트롤러 회전 사용
+		if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
+		{
+			MoveComp->bOrientRotationToMovement = false; // 이동 방향으로 자동 회전하지 않음
+		}
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("%s"),
