@@ -26,10 +26,10 @@ APlayerCharacter::APlayerCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 
 	bUseControllerRotationYaw = false; // 컨트롤러 회전(Yaw) 사용하지 않음
-	// 이동 방향으로 자동 회전
+
 	if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
 	{
-		MoveComp->bOrientRotationToMovement = true;
+		MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전// 이동 방향으로 자동 회전
 		MoveComp->RotationRate = FRotator(0.f, 500.0f, 0.f);
 	}
 }
@@ -64,13 +64,24 @@ void APlayerCharacter::BeginPlay()
 		}
 	}
 
-	CameraBoom = FindComponentByClass<USpringArmComponent>();
-	FollowCamera = FindComponentByClass<UCameraComponent>();
+	CameraBoom = FindComponentByClass<USpringArmComponent>(); // 카메라 스프링 암 컴포넌트 찾기
+	FollowCamera = FindComponentByClass<UCameraComponent>();  // 카메라 컴포넌트 찾기
+
+	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
+	{
+
+		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &APlayerCharacter::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
+		AnimInst->OnPlayMontageNotifyEnd.AddDynamic(this, &APlayerCharacter::OnNotifyEnd);	   // NotifyState 종료(NotifyEnd) 바인딩
+	}
 }
 
 // Move 입력 시 호출되는 함수
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
+	if (bIsAttacking)
+	{
+		return;
+	}
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	if (PlayerController && (MovementVector.X != 0.f || MovementVector.Y != 0.f))
@@ -100,7 +111,9 @@ bool APlayerCharacter::SearchFocusTarget()
 	FocusTargetArray.Empty();
 
 	if (!PlayerController)
+	{
 		return false;
+	}
 
 	// 1) 카메라 위치·방향
 	FVector CamLoc;
@@ -138,7 +151,9 @@ bool APlayerCharacter::SearchFocusTarget()
 	DrawDebugLine(GetWorld(), SweepStart, SweepEnd, FColor::Green, false, 1.0f, 0, 2.0f);
 
 	if (!bHitAny)
+	{
 		return false;
+	}
 
 	// 5) 히트 결과 순회하며 Pawn만 배열에 추가
 	for (const FHitResult &HR : HitResults)
@@ -151,7 +166,9 @@ bool APlayerCharacter::SearchFocusTarget()
 	}
 
 	if (FocusTargetArray.Num() == 0)
+	{
 		return false;
+	}
 
 	CurrentFocusIndex = 0;
 
@@ -186,7 +203,9 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 
 	FVector2D ScreenPos;
 	if (UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(PlayerController, TargetLoc, ScreenPos, false))
+	{
 		FocusIndicatorWidget->SetPositionInViewport(ScreenPos + FVector2D(0.0f, -15.0f), false);
+	}
 
 	// 2) 카메라(또는 스프링암) 월드 위치
 	FVector CamLoc = FollowCamera
@@ -277,9 +296,70 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
 		EnhancedInput->BindAction(SwitchFocusAction, ETriggerEvent::Started, this, &APlayerCharacter::SwitchFocus);
 		EnhancedInput->BindAction(ChangeFocusTargetAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeFocusTarget);
+		EnhancedInput->BindAction(LightAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::LightAttack);
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to bind MoveAction!"));
+	}
+}
+
+void APlayerCharacter::LightAttack(const FInputActionValue &Value)
+{
+	// 첫 공격 시작
+	if (!bIsAttacking)
+	{
+		bIsAttacking = true;
+		CurrentAttackCombo = 1;
+		PlayAttackMontage();
+		return;
+	}
+
+	// 공격 중이고 윈도우 안이라면 다음 콤보 요청
+	if (bCanCombo)
+	{
+		bWantCombo = true;
+	}
+}
+void APlayerCharacter::PlayAttackMontage()
+{
+	UAnimMontage *CurrentAnimMontage = AttackMontages[CurrentAttackCombo - 1];
+	if (CurrentAnimMontage)
+	{
+		PlayAnimMontage(CurrentAnimMontage, 1.0f);
+	}
+}
+
+void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+{
+	// NotifyState 이름이 ComboWindow 일 때만 반응
+	if (NotifyName == TEXT("ComboWindow"))
+	{
+		bCanCombo = true;
+		UE_LOG(LogTemp, Log, TEXT("Combo Window Open"));
+	}
+}
+
+void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+{
+	if (NotifyName == TEXT("ComboWindow"))
+	{
+		bCanCombo = false;
+		UE_LOG(LogTemp, Log, TEXT("Combo Window Close"));
+
+		// 윈도우 닫힐 때까지 클릭 요청이 있었다면
+		if (bWantCombo)
+		{
+			bWantCombo = false;
+			CurrentAttackCombo = FMath::Clamp(CurrentAttackCombo + 1, 1, AttackMontages.Num());
+
+			PlayAttackMontage();
+		}
+		else
+		{
+			// 클릭 없었으면 콤보 종료
+			CurrentAttackCombo = 0;
+			bIsAttacking = false;
+		}
 	}
 }
