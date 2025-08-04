@@ -1,17 +1,16 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "PlayerCharacter.h"
-
 #include "EnhancedInputComponent.h"	  // UEnhancedInputComponent
 #include "EnhancedInputSubsystems.h"  // UEnhancedInputLocalPlayerSubsystem
 #include "InputActionValue.h"		  // FInputActionValue
 #include "GameFramework/Controller.h" // APlayerController
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Character.h"
 #include "Components/InputComponent.h" // UInputComponent base
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
-
 #include "GameFramework/SpringArmComponent.h" // USpringArmComponent
 #include "Camera/CameraComponent.h"			  // UCameraComponent
 #include "DrawDebugHelpers.h"
@@ -24,14 +23,6 @@ APlayerCharacter::APlayerCharacter()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
-	bUseControllerRotationYaw = false; // 컨트롤러 회전(Yaw) 사용하지 않음
-
-	if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
-	{
-		MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전// 이동 방향으로 자동 회전
-		MoveComp->RotationRate = FRotator(0.f, 500.0f, 0.f);
-	}
 }
 
 // Called when the game starts or when spawned
@@ -69,16 +60,32 @@ void APlayerCharacter::BeginPlay()
 
 	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
 	{
-
 		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &APlayerCharacter::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
 		AnimInst->OnPlayMontageNotifyEnd.AddDynamic(this, &APlayerCharacter::OnNotifyEnd);	   // NotifyState 종료(NotifyEnd) 바인딩
+	}
+	MoveComp = GetCharacterMovement();
+	if (MoveComp)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Movement Component Is Successfully Set"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed To Set Movement Component"));
+	}
+
+	bUseControllerRotationYaw = false; // 컨트롤러 회전(Yaw) 사용하지 않음
+
+	if (MoveComp)
+	{
+		MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전
+		MoveComp->RotationRate = FRotator(0.f, 500.0f, 0.f);
 	}
 }
 
 // Move 입력 시 호출되는 함수
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
-	if (bIsAttacking)
+	if (bIsAttacking || MoveComp->IsFalling())
 	{
 		return;
 	}
@@ -235,7 +242,7 @@ void APlayerCharacter::ToogleFocus()
 		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Hidden);
 
 		bUseControllerRotationYaw = false; // 컨트롤러 회전 사용하지 않음
-		if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
+		if (MoveComp)
 		{
 			MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전
 		}
@@ -246,7 +253,7 @@ void APlayerCharacter::ToogleFocus()
 		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Visible);
 
 		bUseControllerRotationYaw = true; // 컨트롤러 회전 사용
-		if (UCharacterMovementComponent *MoveComp = GetCharacterMovement())
+		if (MoveComp)
 		{
 			MoveComp->bOrientRotationToMovement = false; // 이동 방향으로 자동 회전하지 않음
 		}
@@ -297,6 +304,9 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(SwitchFocusAction, ETriggerEvent::Started, this, &APlayerCharacter::SwitchFocus);
 		EnhancedInput->BindAction(ChangeFocusTargetAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeFocusTarget);
 		EnhancedInput->BindAction(LightAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::LightAttack);
+
+		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 	}
 	else
 	{
@@ -327,6 +337,7 @@ void APlayerCharacter::PlayAttackMontage()
 	if (CurrentAnimMontage)
 	{
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
+		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
 	}
 }
 
@@ -351,8 +362,11 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 		if (bWantCombo)
 		{
 			bWantCombo = false;
-			CurrentAttackCombo = FMath::Clamp(CurrentAttackCombo + 1, 1, AttackMontages.Num());
-
+			CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
+			if (!CurrentAttackCombo)
+			{
+				CurrentAttackCombo++;
+			}
 			PlayAttackMontage();
 		}
 		else
@@ -362,4 +376,11 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 			bIsAttacking = false;
 		}
 	}
+}
+
+// PlayerCharacter.cpp
+void APlayerCharacter::Landed(const FHitResult &Hit)
+{
+	Super::Landed(Hit);
+	bJustLanded = true;
 }

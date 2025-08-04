@@ -11,6 +11,7 @@ class UInputAction;
 class APlayerController;
 class USpringArmComponent;
 class UCameraComponent;
+class UCharacterMovementComponent;
 struct FInputActionValue;
 
 UCLASS()
@@ -38,27 +39,26 @@ protected:
 	/* 입력 액션 및 매핑 */
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> MovingContext;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> MoveAction;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> LookAction;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> SwitchFocusAction;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ChangeFocusTargetAction;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> LightAttackAction;
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> JumpAction;
 
 	void Move(const FInputActionValue &Value);				// 캐릭터의 위치를 이동한다
 	void Look(const FInputActionValue &Value);				// 캐릭터의 카메라 방향을 조종한다
 	void SwitchFocus(const FInputActionValue &Value);		// 캐릭터의 포커싱 활용 여부를 전환한다
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
 	void LightAttack(const FInputActionValue &Value);		// 기본 공격(약한 공격)을 한다
+	// void Jump();
+	// void StopJumping();
 
 	/* 카메라 및 포커싱 */
 	void ToogleFocus();						 //  SwitchFocus의 실제 구현부
@@ -87,7 +87,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
-	UPROPERTY(EditDefaultsOnly, Category = "Combat")
+	UPROPERTY(EditAnywhere, Category = "Combat")
 	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주 레퍼런스
 
 	void PlayAttackMontage();
@@ -97,6 +97,15 @@ protected:
 
 	UFUNCTION()
 	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
+
+	/* 조작 */
+	UCharacterMovementComponent *MoveComp;
+
+	/* 조작(점프) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	bool bJustLanded = false;
+
+	virtual void Landed(const FHitResult &Hit) override;
 
 public:
 	// Called every frame
