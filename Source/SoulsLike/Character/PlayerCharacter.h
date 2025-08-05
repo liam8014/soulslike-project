@@ -14,6 +14,19 @@ class UCameraComponent;
 class UCharacterMovementComponent;
 struct FInputActionValue;
 
+UENUM(BlueprintType)
+enum class EMovementState : uint8
+{
+	MS_Idle UMETA(DisplayName = "Idle"),		   // 대기 상태
+	MS_Moving UMETA(DisplayName = "Moving"),	   // 이동 상태
+	MS_Attacking UMETA(DisplayName = "Attacking"), // 공격 상태
+	MS_Dodging UMETA(DisplayName = "Dodging"),	   // 회피 상태
+	MS_Jumping UMETA(DisplayName = "Jumping"),	   // 점프 초기 상태
+	MS_Falling UMETA(DisplayName = "Falling"),	   // 낙하 상태
+	MS_Guarding UMETA(DisplayName = "Guarding"),   // 가드 상태
+	MS_Dead UMETA(DisplayName = "Dead"),		   // 사망 상태
+
+};
 UCLASS()
 class SOULSLIKE_API APlayerCharacter : public ACharacter
 {
@@ -22,6 +35,9 @@ class SOULSLIKE_API APlayerCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	APlayerCharacter();
+
+	/* 플레이어 상태 */
+	EMovementState MovementState = EMovementState::MS_Idle;
 
 	/* UI */
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
@@ -51,14 +67,18 @@ protected:
 	TObjectPtr<UInputAction> LightAttackAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> JumpAction;
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> RunDodgeAction;
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> GuardAction;
 
 	void Move(const FInputActionValue &Value);				// 캐릭터의 위치를 이동한다
 	void Look(const FInputActionValue &Value);				// 캐릭터의 카메라 방향을 조종한다
 	void SwitchFocus(const FInputActionValue &Value);		// 캐릭터의 포커싱 활용 여부를 전환한다
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
 	void LightAttack(const FInputActionValue &Value);		// 기본 공격(약한 공격)을 한다
-	// void Jump();
-	// void StopJumping();
+	void Jump() override;									// 공격 중 점프 비활성화를 위한 오버라이드
+	void RunDodge(const FInputActionValue &Value);
 
 	/* 카메라 및 포커싱 */
 	void ToogleFocus();						 //  SwitchFocus의 실제 구현부
@@ -84,11 +104,13 @@ protected:
 	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
 	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주 레퍼런스
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *RunAttackMontage; // 콤보 몽타주 레퍼런스
 
 	void PlayAttackMontage();
 
@@ -101,15 +123,34 @@ protected:
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
 
+	bool CheckCanMove();
+
 	/* 조작(점프) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bJustLanded = false;
 
 	virtual void Landed(const FHitResult &Hit) override;
 
+	/* 조작 (달리기/회피)*/
+	bool bIsRunning = false;
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	UAnimMontage *DodgeMontage; // 회피 몽타주 레퍼런스
+
+	void Run();
+	void StopRunning();
+	void Dodge();
+
+	/* 조작 (가드/패링)*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	bool bIsGuarding = false;
+
+	void Guard();
+	void StopGuarding();
+
 public:
 	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	virtual void
+	Tick(float DeltaTime) override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;

@@ -99,6 +99,7 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 
 		AddMovementInput(ForwardDir, MovementVector.Y);
 		AddMovementInput(RightDir, MovementVector.X);
+		MovementState = EMovementState::MS_Moving;
 	}
 }
 
@@ -167,8 +168,10 @@ bool APlayerCharacter::SearchFocusTarget()
 	{
 		if (APawn *P = Cast<APawn>(HR.GetActor()))
 		{
+			int32 PastSz = FocusTargetArray.Num();
 			FocusTargetArray.AddUnique(P);
-			UE_LOG(LogTemp, Display, TEXT("Sweep hit pawn: %s"), *P->GetName());
+			if (PastSz < FocusTargetArray.Num())
+				UE_LOG(LogTemp, Display, TEXT("Sweep hit pawn: %s"), *P->GetName());
 		}
 	}
 
@@ -198,7 +201,7 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 		return;
 	}
 
-	// 1) 타겟 위치 구하기 (상체 레벨 오프셋 적용 가능)
+	// 1) 타겟 위치 구하기
 	APawn *Target = FocusTargetArray[CurrentFocusIndex];
 	FVector TargetLoc = Target->GetActorLocation();
 	FVector PlayerLoc = this->GetActorLocation();
@@ -250,6 +253,7 @@ void APlayerCharacter::ToogleFocus()
 	else if (SearchFocusTarget())
 	{
 		bIsFocusing = true;
+		StopRunning();
 		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Visible);
 
 		bUseControllerRotationYaw = true; // 컨트롤러 회전 사용
@@ -289,6 +293,10 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		UpdateFocusCamera(DeltaTime);
 	}
+	if (MoveComp->IsFalling())
+	{
+		MovementState = EMovementState::MS_Falling;
+	}
 }
 
 // Called to bind functionality to input
@@ -305,8 +313,14 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(ChangeFocusTargetAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeFocusTarget);
 		EnhancedInput->BindAction(LightAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::LightAttack);
 
-		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+
+		EnhancedInput->BindAction(RunDodgeAction, ETriggerEvent::Started, this, &APlayerCharacter::RunDodge);
+		EnhancedInput->BindAction(RunDodgeAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopRunning);
+
+		EnhancedInput->BindAction(GuardAction, ETriggerEvent::Started, this, &APlayerCharacter::Guard);
+		EnhancedInput->BindAction(GuardAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopGuarding);
 	}
 	else
 	{
@@ -317,7 +331,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 {
 	// 첫 공격 시작
-	if (!bIsAttacking)
+	if (!bIsAttacking && CheckCanMove())
 	{
 		bIsAttacking = true;
 		CurrentAttackCombo = 1;
@@ -333,9 +347,19 @@ void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 }
 void APlayerCharacter::PlayAttackMontage()
 {
-	UAnimMontage *CurrentAnimMontage = AttackMontages[CurrentAttackCombo - 1];
+	UAnimMontage *CurrentAnimMontage;
+	if (bIsRunning)
+	{
+		CurrentAnimMontage = RunAttackMontage;
+		CurrentAttackCombo = 1;
+	}
+	else
+	{
+		CurrentAnimMontage = AttackMontages[CurrentAttackCombo - 1];
+	}
 	if (CurrentAnimMontage)
 	{
+		MovementState = EMovementState::MS_Attacking;
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
 	}
@@ -343,11 +367,16 @@ void APlayerCharacter::PlayAttackMontage()
 
 void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
 {
+
 	// NotifyState 이름이 ComboWindow 일 때만 반응
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = true;
-		UE_LOG(LogTemp, Log, TEXT("Combo Window Open"));
+		// UE_LOG(LogTemp, Log, TEXT("Combo Window Open"));
+	}
+	if (NotifyName == TEXT("EndDodge"))
+	{
+		MovementState = EMovementState::MS_Idle;
 	}
 }
 
@@ -356,7 +385,7 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = false;
-		UE_LOG(LogTemp, Log, TEXT("Combo Window Close"));
+		// UE_LOG(LogTemp, Log, TEXT("Combo Window Close"));
 
 		// 윈도우 닫힐 때까지 클릭 요청이 있었다면
 		if (bWantCombo)
@@ -374,13 +403,82 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 			// 클릭 없었으면 콤보 종료
 			CurrentAttackCombo = 0;
 			bIsAttacking = false;
+			MovementState = EMovementState::MS_Idle;
 		}
 	}
 }
 
-// PlayerCharacter.cpp
 void APlayerCharacter::Landed(const FHitResult &Hit)
 {
 	Super::Landed(Hit);
 	bJustLanded = true;
+	MovementState = EMovementState::MS_Idle;
+}
+
+void APlayerCharacter::Jump()
+{
+	if (bIsAttacking) // 공격 중 Jump 방지
+	{
+		return;
+	}
+	Super::Jump();
+}
+
+void APlayerCharacter::RunDodge(const FInputActionValue &Value)
+{
+	if (!bIsFocusing)
+	{
+		Run();
+	}
+	else if (CheckCanMove())
+	{
+		Dodge();
+	}
+}
+
+void APlayerCharacter::Run()
+{
+	if (!bIsRunning)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Run!"));
+		bIsRunning = true;
+		MoveComp->MaxWalkSpeed = 1100;
+	}
+}
+
+void APlayerCharacter::StopRunning()
+{
+	if (bIsRunning)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Walk!"));
+		bIsRunning = false;
+		MoveComp->MaxWalkSpeed = 550;
+	}
+}
+
+void APlayerCharacter::Dodge()
+{
+	MovementState = EMovementState::MS_Dodging;
+	PlayAnimMontage(DodgeMontage, 1.5f);
+}
+
+bool APlayerCharacter::CheckCanMove()
+{
+	return (MovementState == EMovementState::MS_Moving || MovementState == EMovementState::MS_Idle);
+}
+
+void APlayerCharacter::Guard()
+{
+	if (!bIsGuarding)
+	{
+		bIsGuarding = true;
+	}
+}
+
+void APlayerCharacter::StopGuarding()
+{
+	if (bIsGuarding)
+	{
+		bIsGuarding = false;
+	}
 }
