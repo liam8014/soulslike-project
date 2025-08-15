@@ -1,20 +1,26 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "PlayerCharacter.h"
-#include "EnhancedInputComponent.h"	  // UEnhancedInputComponent
-#include "EnhancedInputSubsystems.h"  // UEnhancedInputLocalPlayerSubsystem
-#include "InputActionValue.h"		  // FInputActionValue
+#include "EnhancedInputComponent.h"	   // UEnhancedInputComponent
+#include "EnhancedInputSubsystems.h"   // UEnhancedInputLocalPlayerSubsystem
+#include "InputActionValue.h"		   // FInputActionValue
+#include "Components/InputComponent.h" // UInputComponent base
+
 #include "GameFramework/Controller.h" // APlayerController
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Character.h"
-#include "Components/InputComponent.h" // UInputComponent base
-#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
-#include "Camera/PlayerCameraManager.h"
 #include "GameFramework/SpringArmComponent.h" // USpringArmComponent
-#include "Camera/CameraComponent.h"			  // UCameraComponent
+
+#include "EngineUtils.h"
+
+#include "Camera/PlayerCameraManager.h"
+#include "Camera/CameraComponent.h" // UCameraComponent
 #include "DrawDebugHelpers.h"
+
 #include "Kismet/KismetMathLibrary.h"
+#include "Math/UnrealMathUtility.h" // FMath
+
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 
@@ -80,8 +86,18 @@ void APlayerCharacter::BeginPlay()
 		MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전
 		MoveComp->RotationRate = FRotator(0.f, 500.0f, 0.f);
 	}
-}
 
+	SwordMeshComponent = FindComponentByClass<UStaticMeshComponent>();
+
+	if (SwordMeshComponent)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Sword Mesh Component Is Successfully Set : %s"), *SwordMeshComponent->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed To Set Sword Mesh Component"));
+	}
+}
 // Move 입력 시 호출되는 함수
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
@@ -297,9 +313,12 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		MovementState = EMovementState::MS_Falling;
 	}
+	if (bIsAttacking)
+	{
+		DoAttackTrace();
+	}
 }
 
-// Called to bind functionality to input
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -335,7 +354,7 @@ void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 	{
 		bIsAttacking = true;
 		CurrentAttackCombo = 1;
-		PlayAttackMontage();
+		PlayLightAttackMontage();
 		return;
 	}
 
@@ -345,7 +364,7 @@ void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 		bWantCombo = true;
 	}
 }
-void APlayerCharacter::PlayAttackMontage()
+void APlayerCharacter::PlayLightAttackMontage()
 {
 	UAnimMontage *CurrentAnimMontage;
 	if (bIsRunning)
@@ -362,6 +381,19 @@ void APlayerCharacter::PlayAttackMontage()
 		MovementState = EMovementState::MS_Attacking;
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
+	}
+}
+
+void APlayerCharacter::PlayHitMontage()
+{
+	int Index = FMath::RandRange(0, HitMontages.Num() - 1);
+	UAnimMontage *CurrentAnimMontage = HitMontages[Index];
+	bIsHit = true;
+	if (CurrentAnimMontage)
+	{
+		// MovementState = EMovementState::MS_Hit;
+		PlayAnimMontage(CurrentAnimMontage, 1.0f);
+		UE_LOG(LogTemp, Log, TEXT("Hit Montage[%d] Played"), Index);
 	}
 }
 
@@ -385,9 +417,6 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = false;
-		// UE_LOG(LogTemp, Log, TEXT("Combo Window Close"));
-
-		// 윈도우 닫힐 때까지 클릭 요청이 있었다면
 		if (bWantCombo)
 		{
 			bWantCombo = false;
@@ -396,11 +425,10 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 			{
 				CurrentAttackCombo++;
 			}
-			PlayAttackMontage();
+			PlayLightAttackMontage();
 		}
 		else
 		{
-			// 클릭 없었으면 콤보 종료
 			CurrentAttackCombo = 0;
 			bIsAttacking = false;
 			MovementState = EMovementState::MS_Idle;
@@ -480,5 +508,77 @@ void APlayerCharacter::StopGuarding()
 	if (bIsGuarding)
 	{
 		bIsGuarding = false;
+	}
+}
+void APlayerCharacter::DoAttackTrace()
+{
+	if (SwordMeshComponent) // SwordMeshComponent가 valid한지 확인
+	{
+		UWorld *World = GetWorld();
+		if (World)
+		{
+			FVector Start = SwordMeshComponent->GetComponentLocation();
+			FVector Forward = SwordMeshComponent->GetRightVector();
+			FVector End = Start + Forward * LightAttackRange;
+
+			// 쿼리 파라미터 (자기 자신 무시)
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(this);
+			QueryParams.bTraceComplex = true;
+
+			// Pawn 오브젝트 타입만 검사하도록 설정
+			FCollisionObjectQueryParams ObjectQueryParams;
+			ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+			TArray<FHitResult> Hits;
+			// FHitResult Hit;
+			bool bHit = World->LineTraceMultiByObjectType(Hits, Start, End, ObjectQueryParams, QueryParams);
+			if (bHit)
+			{
+				for (auto Hit : Hits)
+				{
+					APlayerCharacter *HitPlayerCharacter = nullptr;
+					if (bHit)
+					{
+						HitPlayerCharacter = Cast<APlayerCharacter>(Hit.GetActor());
+					}
+					if (bHit && HitPlayerCharacter)
+					{
+						UE_LOG(LogTemp, Log, TEXT("[AttackTrace] Hit Pawn Actor: %s"),
+							   *Hit.GetActor()->GetName());
+						HitPlayerCharacter->PlayHitMontage();
+						// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
+						FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
+						ToAttacker.Z = 0.f;
+
+						if (!ToAttacker.IsNearlyZero())
+						{
+							FRotator LookAtRot = ToAttacker.Rotation();
+							LookAtRot.Pitch = 0.f;
+							LookAtRot.Roll = 0.f;
+
+							// 가능하면 컨트롤러 회전도 설정 (애니메이션/컨트롤러에 따라 필요)
+							if (AController *HitCtrl = HitPlayerCharacter->GetController())
+							{
+								HitCtrl->SetControlRotation(LookAtRot);
+							}
+
+							// 액터 자체 회전도 설정
+							HitPlayerCharacter->SetActorRotation(LookAtRot);
+							// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
+						}
+						bIsHit = true;
+					}
+				}
+				// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);}
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] GetWorld() returned null"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] SwordMeshComponent is null"));
 	}
 }

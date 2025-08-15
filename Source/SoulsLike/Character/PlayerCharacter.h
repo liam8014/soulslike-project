@@ -20,6 +20,7 @@ enum class EMovementState : uint8
 	MS_Idle UMETA(DisplayName = "Idle"),		   // 대기 상태
 	MS_Moving UMETA(DisplayName = "Moving"),	   // 이동 상태
 	MS_Attacking UMETA(DisplayName = "Attacking"), // 공격 상태
+	MS_Hit UMETA(DisplayName = "Hit"),			   // 피격 상태
 	MS_Dodging UMETA(DisplayName = "Dodging"),	   // 회피 상태
 	MS_Jumping UMETA(DisplayName = "Jumping"),	   // 점프 초기 상태
 	MS_Falling UMETA(DisplayName = "Falling"),	   // 낙하 상태
@@ -103,16 +104,26 @@ protected:
 	bool bIsAttacking = false; // 공격 중인지
 	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
 	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
+	bool bIsHit = false;	   // 플레이어가 공격을 맞췄는지
 
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
+
+	float LightAttackRange = 150.0f; // 기본 공격 범위
+
+	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *RunAttackMontage; // 콤보 몽타주 레퍼런스
+	TArray<UAnimMontage *> HitMontages; // 피격 몽타주 레퍼런스
 
-	void PlayAttackMontage();
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *RunAttackMontage; // 대쉬공격 몽타주 레퍼런스
+
+	void PlayLightAttackMontage();
+	void PlayHitMontage();
+	void DoAttackTrace();
 
 	UFUNCTION()
 	void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
