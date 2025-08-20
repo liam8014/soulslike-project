@@ -24,6 +24,8 @@
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 
+#include "TimerManager.h"
+
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
@@ -72,6 +74,7 @@ void APlayerCharacter::BeginPlay()
 	MoveComp = GetCharacterMovement();
 	if (MoveComp)
 	{
+		MoveComp->MaxWalkSpeed = WalkSpeed;
 		UE_LOG(LogTemp, Display, TEXT("Movement Component Is Successfully Set"));
 	}
 	else
@@ -101,22 +104,57 @@ void APlayerCharacter::BeginPlay()
 // Move 입력 시 호출되는 함수
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
-	if (bIsAttacking || MoveComp->IsFalling())
-	{
-		return;
-	}
-	FVector2D MovementVector = Value.Get<FVector2D>();
+	if (!CheckCanMove())
+		return;			  // 이동 가능 체크
+	bIsAttacking = false; // 공격 플래그 리셋
 
-	if (PlayerController && (MovementVector.X != 0.f || MovementVector.Y != 0.f))
-	{
-		const FRotator YawRotation(0, PlayerController->GetControlRotation().Yaw, 0);
-		const FVector ForwardDir = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		const FVector RightDir = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+	FVector2D Input = Value.Get<FVector2D>(); // X=Right, Y=Forward
+	if (Input.X == 0.f && Input.Y == 0.f)
+		return; // 입력 없음
 
-		AddMovementInput(ForwardDir, MovementVector.Y);
-		AddMovementInput(RightDir, MovementVector.X);
+	const FRotator Yaw(0, PlayerController->GetControlRotation().Yaw, 0); // 카메라 yaw
+	const FVector CamF = FRotationMatrix(Yaw).GetUnitAxis(EAxis::X);	  // 카메라 전방
+	const FVector CamR = FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y);	  // 카메라 우측
+
+	FVector WorldInput = CamF * Input.Y + CamR * Input.X; // 월드 입력 벡터
+	float InLen = WorldInput.Size();					  // 입력 길이
+	if (InLen <= KINDA_SMALL_NUMBER)
+		return; // 안전 체크
+
+	FVector MoveDir = WorldInput / InLen; // 이동 방향(단위벡터)
+
+	FVector Facing = GetActorForwardVector();
+	Facing.Z = 0.f;
+	Facing = Facing.GetSafeNormal(); // 플레이어 바라보는 방향
+	if (Facing.IsNearlyZero())
+	{
+		AddMovementInput(MoveDir, InLen);
 		MovementState = EMovementState::MS_Moving;
-	}
+		return;
+	} // Facing 이상시 기본 처리
+
+	float Dot = FVector::DotProduct(MoveDir, Facing); // 정렬도 (-1..1)
+	if (Dot >= AlignmentThreshold)
+	{
+		AddMovementInput(MoveDir, InLen);
+		MovementState = EMovementState::MS_Moving;
+		return;
+	} // 거의 일치하면 감속 없음
+
+	FVector Right = FVector::CrossProduct(FVector::UpVector, Facing).GetSafeNormal(); // 플레이어 우측 벡터
+	float ForwardComp = FVector::DotProduct(MoveDir, Facing);						  // 정면 컴포넌트
+	float RightComp = FVector::DotProduct(MoveDir, Right);							  // 측면 컴포넌트
+
+	float AdjForward = (ForwardComp > 0.f) ? ForwardComp : (ForwardComp * BackwardMovementMultiplier); // 전/후 보정
+	float AdjRight = RightComp * SideMovementMultiplier;											   // 좌우 보정
+
+	FVector AdjDir = Facing * AdjForward + Right * AdjRight; // 보정된 방향 벡터
+	float Scale = InLen * AdjDir.Size();					 // 최종 스케일
+	if (Scale > KINDA_SMALL_NUMBER)
+	{
+		AddMovementInput(AdjDir.GetSafeNormal(), Scale);
+		MovementState = EMovementState::MS_Moving;
+	} // 입력 적용
 }
 
 // Look 입력 시 호출되는 함수
@@ -146,7 +184,7 @@ bool APlayerCharacter::SearchFocusTarget()
 	FVector CamForward = CamRot.Vector();
 
 	// 2) Sweep 파라미터
-	FVector BoxHalfExtents = FVector(500.f, 500.f, 500.f);
+	FVector BoxHalfExtents = FVector(300.f, 500.f, 500.f);
 
 	const float SweepDistance = FocusSearchRadius;
 	FVector SweepStart = CamLoc + CamForward * 800;
@@ -172,7 +210,7 @@ bool APlayerCharacter::SearchFocusTarget()
 	// 4) 디버그: 스윕 시작/끝 박스 + 연결선
 	DrawDebugBox(GetWorld(), SweepStart, BoxHalfExtents, FQuat::Identity, FColor::Red, false, 1.0f, 0, 2.0f);
 	DrawDebugBox(GetWorld(), SweepEnd, BoxHalfExtents, FQuat::Identity, FColor::Cyan, false, 1.0f, 0, 2.0f);
-	DrawDebugLine(GetWorld(), SweepStart, SweepEnd, FColor::Green, false, 1.0f, 0, 2.0f);
+	DrawDebugLine(GetWorld(), SweepStart, SweepEnd, FColor::Green, false, 1.0f, 0, 5.0f);
 
 	if (!bHitAny)
 	{
@@ -335,8 +373,10 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
-		EnhancedInput->BindAction(RunDodgeAction, ETriggerEvent::Started, this, &APlayerCharacter::RunDodge);
-		EnhancedInput->BindAction(RunDodgeAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopRunning);
+		EnhancedInput->BindAction(RunAction, ETriggerEvent::Started, this, &APlayerCharacter::Run);
+		EnhancedInput->BindAction(RunAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopRunning);
+
+		EnhancedInput->BindAction(DodgeAction, ETriggerEvent::Started, this, &APlayerCharacter::Dodge);
 
 		EnhancedInput->BindAction(GuardAction, ETriggerEvent::Started, this, &APlayerCharacter::Guard);
 		EnhancedInput->BindAction(GuardAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopGuarding);
@@ -347,10 +387,54 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 	}
 }
 
+void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+{
+
+	// NotifyState 이름이 ComboWindow 일 때만 반응
+	if (NotifyName == TEXT("ComboWindow"))
+	{
+		bCanCombo = true;
+		// UE_LOG(LogTemp, Log, TEXT("Combo Window Open"));
+	}
+	if (NotifyName == TEXT("EndDodge"))
+	{
+		MovementState = EMovementState::MS_Idle;
+		bIsDodging = false;
+	}
+	if (NotifyName == TEXT("EndHit"))
+	{
+		MovementState = EMovementState::MS_Idle;
+		// bIsHit = false;
+	}
+}
+
+void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+{
+	if (NotifyName == TEXT("ComboWindow"))
+	{
+		bCanCombo = false;
+		if (bWantCombo)
+		{
+			bWantCombo = false;
+			CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
+			if (!CurrentAttackCombo) // 현재 공격 콤보 0 방지
+			{
+				CurrentAttackCombo++;
+			}
+			PlayLightAttackMontage();
+		}
+		else
+		{
+			CurrentAttackCombo = 0;
+			bIsAttacking = false;
+			MovementState = EMovementState::MS_Idle;
+		}
+	}
+}
+
 void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 {
-	// 첫 공격 시작
-	if (!bIsAttacking && CheckCanMove())
+	if (!bIsAttacking && CheckCanMove()) // 첫 공격 시작
 	{
 		bIsAttacking = true;
 		CurrentAttackCombo = 1;
@@ -358,16 +442,18 @@ void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 		return;
 	}
 
-	// 공격 중이고 윈도우 안이라면 다음 콤보 요청
-	if (bCanCombo)
+	if (bCanCombo) // 플레이어가 콤보 연속 입력 시
 	{
 		bWantCombo = true;
 	}
 }
 void APlayerCharacter::PlayLightAttackMontage()
 {
+	ResetHitCharacters();
+	bCanCombo = false;
 	UAnimMontage *CurrentAnimMontage;
-	if (bIsRunning)
+	// UE_LOG(LogTemp, Log, TEXT("Current Speed : %f"), );
+	if (bIsRunning && GetVelocity().Size() >= (RunSpeed * 0.85f))
 	{
 		CurrentAnimMontage = RunAttackMontage;
 		CurrentAttackCombo = 1;
@@ -376,8 +462,9 @@ void APlayerCharacter::PlayLightAttackMontage()
 	{
 		CurrentAnimMontage = AttackMontages[CurrentAttackCombo - 1];
 	}
-	if (CurrentAnimMontage)
+	if (CurrentAnimMontage && !bIsDodging)
 	{
+		bIsAttacking = true;
 		MovementState = EMovementState::MS_Attacking;
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
@@ -396,43 +483,15 @@ void APlayerCharacter::PlayHitMontage()
 		UE_LOG(LogTemp, Log, TEXT("Hit Montage[%d] Played"), Index);
 	}
 }
-
-void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+void APlayerCharacter::PlayHitMontage(int32 index)
 {
-
-	// NotifyState 이름이 ComboWindow 일 때만 반응
-	if (NotifyName == TEXT("ComboWindow"))
+	UAnimMontage *CurrentAnimMontage = HitMontages[index];
+	bIsHit = true;
+	if (CurrentAnimMontage)
 	{
-		bCanCombo = true;
-		// UE_LOG(LogTemp, Log, TEXT("Combo Window Open"));
-	}
-	if (NotifyName == TEXT("EndDodge"))
-	{
-		MovementState = EMovementState::MS_Idle;
-	}
-}
-
-void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
-{
-	if (NotifyName == TEXT("ComboWindow"))
-	{
-		bCanCombo = false;
-		if (bWantCombo)
-		{
-			bWantCombo = false;
-			CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
-			if (!CurrentAttackCombo)
-			{
-				CurrentAttackCombo++;
-			}
-			PlayLightAttackMontage();
-		}
-		else
-		{
-			CurrentAttackCombo = 0;
-			bIsAttacking = false;
-			MovementState = EMovementState::MS_Idle;
-		}
+		// MovementState = EMovementState::MS_Hit;
+		PlayAnimMontage(CurrentAnimMontage, 1.0f);
+		UE_LOG(LogTemp, Log, TEXT("Hit Montage[%d] Played"), index);
 	}
 }
 
@@ -452,25 +511,14 @@ void APlayerCharacter::Jump()
 	Super::Jump();
 }
 
-void APlayerCharacter::RunDodge(const FInputActionValue &Value)
-{
-	if (!bIsFocusing)
-	{
-		Run();
-	}
-	else if (CheckCanMove())
-	{
-		Dodge();
-	}
-}
-
 void APlayerCharacter::Run()
 {
 	if (!bIsRunning)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Run!"));
 		bIsRunning = true;
-		MoveComp->MaxWalkSpeed = 1100;
+		bIsAttacking = false;
+		bIsGuarding = false;
+		MoveComp->MaxWalkSpeed = RunSpeed;
 	}
 }
 
@@ -478,16 +526,18 @@ void APlayerCharacter::StopRunning()
 {
 	if (bIsRunning)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Walk!"));
 		bIsRunning = false;
-		MoveComp->MaxWalkSpeed = 550;
+		MoveComp->MaxWalkSpeed = WalkSpeed;
 	}
 }
 
 void APlayerCharacter::Dodge()
 {
+	if (!CheckCanMove() || !bIsFocusing)
+		return;
 	MovementState = EMovementState::MS_Dodging;
-	PlayAnimMontage(DodgeMontage, 1.5f);
+	bIsDodging = true;
+	PlayAnimMontage(DodgeMontage, 1.2f);
 }
 
 bool APlayerCharacter::CheckCanMove()
@@ -500,6 +550,7 @@ void APlayerCharacter::Guard()
 	if (!bIsGuarding)
 	{
 		bIsGuarding = true;
+		MoveComp->MaxWalkSpeed = WalkSpeed * 0.8;
 	}
 }
 
@@ -508,6 +559,7 @@ void APlayerCharacter::StopGuarding()
 	if (bIsGuarding)
 	{
 		bIsGuarding = false;
+		MoveComp->MaxWalkSpeed = WalkSpeed;
 	}
 }
 void APlayerCharacter::DoAttackTrace()
@@ -540,37 +592,55 @@ void APlayerCharacter::DoAttackTrace()
 					if (bHit)
 					{
 						HitPlayerCharacter = Cast<APlayerCharacter>(Hit.GetActor());
-					}
-					if (bHit && HitPlayerCharacter)
-					{
-						UE_LOG(LogTemp, Log, TEXT("[AttackTrace] Hit Pawn Actor: %s"),
-							   *Hit.GetActor()->GetName());
-						HitPlayerCharacter->PlayHitMontage();
-						// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
-						FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
-						ToAttacker.Z = 0.f;
-
-						if (!ToAttacker.IsNearlyZero())
+						if (HitPlayerCharacter)
 						{
-							FRotator LookAtRot = ToAttacker.Rotation();
-							LookAtRot.Pitch = 0.f;
-							LookAtRot.Roll = 0.f;
-
-							// 가능하면 컨트롤러 회전도 설정 (애니메이션/컨트롤러에 따라 필요)
-							if (AController *HitCtrl = HitPlayerCharacter->GetController())
+							if (HitPlayerCharacter->bIsHit)
 							{
-								HitCtrl->SetControlRotation(LookAtRot);
+								continue;
 							}
+							HitPlayerCharacter->bIsHit = true;
+							HitPlayerCharacter->MovementState = EMovementState::MS_Hit;
+							HitCharacters.Add(HitPlayerCharacter);
+							UE_LOG(LogTemp, Log, TEXT("[AttackTrace] Hit Pawn Actor: %s"),
+								   *Hit.GetActor()->GetName());
+							int32 PlayMontageIndex = 0;
+							switch (CurrentAttackCombo)
+							{
+							case 1:
+							case 3:
+								PlayMontageIndex = 0;
+								break;
+							case 2:
+								PlayMontageIndex = 1;
+								break;
+							case 4:
+								PlayMontageIndex = 2;
+							}
+							HitPlayerCharacter->PlayHitMontage(PlayMontageIndex);
+							// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
+							FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
+							ToAttacker.Z = 0.f;
 
-							// 액터 자체 회전도 설정
-							HitPlayerCharacter->SetActorRotation(LookAtRot);
-							// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
+							if (!ToAttacker.IsNearlyZero()) // 맞은 캐릭터 시점 고정하기
+							{
+								FRotator LookAtRot = ToAttacker.Rotation();
+								LookAtRot.Pitch = 0.f;
+								LookAtRot.Roll = 0.f;
+
+								if (AController *HitCtrl = HitPlayerCharacter->GetController())
+								{
+									HitCtrl->SetControlRotation(LookAtRot);
+								}
+
+								// 액터 자체 회전도 설정
+								HitPlayerCharacter->SetActorRotation(LookAtRot);
+								// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
+							}
 						}
-						bIsHit = true;
 					}
 				}
-				// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);}
 			}
+			// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
 		}
 		else
 		{
@@ -581,4 +651,13 @@ void APlayerCharacter::DoAttackTrace()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] SwordMeshComponent is null"));
 	}
+}
+
+void APlayerCharacter::ResetHitCharacters()
+{
+	for (auto ch : HitCharacters)
+	{
+		ch->bIsHit = false;
+	}
+	HitCharacters.Empty();
 }

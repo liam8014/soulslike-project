@@ -69,7 +69,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> RunDodgeAction;
+	TObjectPtr<UInputAction> RunAction;
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> DodgeAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> GuardAction;
 
@@ -79,7 +81,9 @@ protected:
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
 	void LightAttack(const FInputActionValue &Value);		// 기본 공격(약한 공격)을 한다
 	void Jump() override;									// 공격 중 점프 비활성화를 위한 오버라이드
-	void RunDodge(const FInputActionValue &Value);
+	void Run();												// 캐릭터의 이동속도 상한을 증가시킨다
+	void StopRunning();										// 캐릭터의 이동속도 상한을 기본 속도로 설정한다
+	void Dodge();											// 캐릭터가 회피한다
 
 	/* 카메라 및 포커싱 */
 	void ToogleFocus();						 //  SwitchFocus의 실제 구현부
@@ -101,14 +105,16 @@ protected:
 
 	/* 전투 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-	bool bIsAttacking = false; // 공격 중인지
-	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
-	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
-	bool bIsHit = false;	   // 플레이어가 공격을 맞췄는지
+	bool bIsAttacking = false;				  // 공격 중인지
+	bool bCanCombo = false;					  // 콤보를 연속할 수 있는지
+	bool bWantCombo = false;				  // 플레이어가 콤보 연속을 원하는지
+	bool bIsHit = false;					  // 플레이어가 공격을 맞췄는지
+	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
 
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
-	float LightAttackRange = 150.0f; // 기본 공격 범위
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float LightAttackRange = 120.0f; // 기본 공격 범위
 
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
@@ -121,9 +127,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *RunAttackMontage; // 대쉬공격 몽타주 레퍼런스
 
-	void PlayLightAttackMontage();
-	void PlayHitMontage();
-	void DoAttackTrace();
+	void PlayLightAttackMontage();	  // 일반 공격 몽타주 재생
+	void PlayHitMontage();			  // 피격 몽타주 재생
+	void PlayHitMontage(int32 index); // 피격 몽타주 선택 재생
+	void DoAttackTrace();			  // 공격 트레이스
+	void ResetHitCharacters();		  // 피격 캐릭터 배열 초기화
 
 	UFUNCTION()
 	void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
@@ -135,6 +143,21 @@ protected:
 	UCharacterMovementComponent *MoveComp;
 
 	bool CheckCanMove();
+	/* 조작 (걷기)*/
+	float WalkSpeed = 500;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
+	float SideMovementMultiplier = 0.6f; // 좌/우 성분 계수
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
+	float BackwardMovementMultiplier = 0.5f; // 뒤로 이동(정면 반대) 성분 계수
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
+	float AlignmentThreshold = 0.9f; // 전방 기준 임계
+
+	/* 조작 (달리기)*/
+	float RunSpeed = 1100;
+	bool bIsRunning = false;
 
 	/* 조작(점프) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
@@ -142,14 +165,12 @@ protected:
 
 	virtual void Landed(const FHitResult &Hit) override;
 
-	/* 조작 (달리기/회피)*/
-	bool bIsRunning = false;
+	/* 조작 (회피)*/
+	bool bIsDodging = false;
+	float DodgeCooldown = 2.0f;
+
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	UAnimMontage *DodgeMontage; // 회피 몽타주 레퍼런스
-
-	void Run();
-	void StopRunning();
-	void Dodge();
 
 	/* 조작 (가드/패링)*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
