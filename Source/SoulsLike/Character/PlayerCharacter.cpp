@@ -278,6 +278,10 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 
 	// 3) 바라볼 회전 계산
 	FRotator DesiredRot = UKismetMathLibrary::FindLookAtRotation(CamLoc, TargetLoc);
+	if (DesiredRot.Pitch < -20)
+	{
+		DesiredRot.Pitch = -20;
+	}
 
 	// 4) 부드러운 보간
 	FRotator CurrentRot = PlayerController->GetControlRotation();
