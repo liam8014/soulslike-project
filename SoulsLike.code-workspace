@@ -14,7 +14,9 @@
 		"files.associations": {
 			"*.rh": "cpp",
 			"*.imp": "cpp",
-			"fft": "cpp"
+			"fft": "cpp",
+			"chrono": "cpp",
+			"variant": "cpp"
 		}
 	},
 	"extensions": {

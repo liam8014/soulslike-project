@@ -26,8 +26,16 @@ enum class EMovementState : uint8
 	MS_Falling UMETA(DisplayName = "Falling"),	   // 낙하 상태
 	MS_Guarding UMETA(DisplayName = "Guarding"),   // 가드 상태
 	MS_Dead UMETA(DisplayName = "Dead"),		   // 사망 상태
-
 };
+
+UENUM(BlueprintType)
+enum class EAttackDirection : uint8
+{
+	AD_Left UMETA(DisplayName = "Idle"),	// 좌측
+	AD_Right UMETA(DisplayName = "Idle"),	// 우측
+	AD_Forward UMETA(DisplayName = "Idle"), // 정면
+};
+
 UCLASS()
 class SOULSLIKE_API APlayerCharacter : public ACharacter
 {
@@ -103,13 +111,24 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	UCameraComponent *FollowCamera; // 카메라 컴포넌트
 
-	/* 전투 */
+	/* 애니메이션 */
+	UFUNCTION()
+	void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
+
+	UFUNCTION()
+	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
+
+	/* 체력 및 스테미나 */
+	float Health = 100.0f;
+	float Stamina = 100.0f;
+
+	/* 전투 (공격)*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-	bool bIsAttacking = false;				  // 공격 중인지
-	bool bCanCombo = false;					  // 콤보를 연속할 수 있는지
-	bool bWantCombo = false;				  // 플레이어가 콤보 연속을 원하는지
-	bool bIsHit = false;					  // 플레이어가 공격을 맞췄는지
-	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
+	bool bIsAttacking = false; // 공격 중인지
+	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨타임 확인용)
+	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
+	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
+	bool bIsHit = false;	   // 플레이어가 공격을 맞췄는지
 
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
@@ -125,24 +144,29 @@ protected:
 	TArray<UAnimMontage *> HitMontages; // 피격 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
+	TArray<UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주 레퍼런스
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *RunAttackMontage; // 대쉬공격 몽타주 레퍼런스
 
-	void PlayLightAttackMontage();	  // 일반 공격 몽타주 재생
-	void PlayHitMontage();			  // 피격 몽타주 재생
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *BlockAttackMontage; // 공격 막힘 몽타주 레퍼런스
+
+	void PlayLightAttackMontage(); // 일반 공격 몽타주 재생
+	void DoAttackTrace();		   // 공격 트레이스
+
+	/* 전투 (피격)*/
+	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
+
+	void DoHitReaction(EAttackDirection ad); // 피격 반응
+	// void PlayHitMontage();			  // 피격 몽타주 재생
 	void PlayHitMontage(int32 index); // 피격 몽타주 선택 재생
-	void DoAttackTrace();			  // 공격 트레이스
 	void ResetHitCharacters();		  // 피격 캐릭터 배열 초기화
-
-	UFUNCTION()
-	void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
-
-	UFUNCTION()
-	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
+	bool CanMove();
 
-	bool CheckCanMove();
 	/* 조작 (걷기)*/
 	float WalkSpeed = 500;
 
@@ -156,7 +180,7 @@ protected:
 	float AlignmentThreshold = 0.9f; // 전방 기준 임계
 
 	/* 조작 (달리기)*/
-	float RunSpeed = 1100;
+	float RunSpeed = 1300;
 	bool bIsRunning = false;
 
 	/* 조작(점프) */
