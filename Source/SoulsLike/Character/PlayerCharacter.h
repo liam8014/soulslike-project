@@ -12,6 +12,7 @@ class APlayerController;
 class USpringArmComponent;
 class UCameraComponent;
 class UCharacterMovementComponent;
+class UStatusBar;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -55,7 +56,30 @@ public:
 	UPROPERTY()
 	UUserWidget *FocusIndicatorWidget;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UStatusBar> StatusBarClass;
+
+	UPROPERTY()
+	UStatusBar *StatusBar;
+
+	// void UpdateUI();
+	/* 체력 및 스테미나 */
+public:
+	bool AddHealth(float Amount);
+	bool AddStamina(float Amount);
+
 protected:
+	float MaxHealth = 100.0f;
+	float Health = MaxHealth;
+	float MaxStamina = 100.0f;
+	float Stamina = MaxStamina;
+	const float StaminaRegenAmount = 0.15f;	   // 스테미나 기본 회복량
+	
+	const float StaminaLightAttackCost = 6.0f; // 스테미나 기본 공격 소모량
+	const float StaminaRunStartCost = 2.5f;	   // 달리기 시작 소모량
+	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
+	const float StaminaDodgeCost = 15.0f;	   // 회피 소모량
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
@@ -118,14 +142,10 @@ protected:
 	UFUNCTION()
 	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
-	/* 체력 및 스테미나 */
-	float Health = 100.0f;
-	float Stamina = 100.0f;
-
 	/* 전투 (공격)*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
 	bool bIsAttacking = false; // 공격 중인지
-	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨타임 확인용)
+	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨다운 확인용)
 	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
 	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
 	bool bIsHit = false;	   // 플레이어가 공격을 맞췄는지

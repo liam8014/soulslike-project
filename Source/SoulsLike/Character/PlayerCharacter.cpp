@@ -26,6 +26,8 @@
 
 #include "TimerManager.h"
 
+#include "../UI/StatusBar.h"
+
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
@@ -100,13 +102,24 @@ void APlayerCharacter::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed To Set Sword Mesh Component"));
 	}
+
+	if (StatusBarClass)
+	{
+		StatusBar = CreateWidget<UStatusBar>(GetWorld(), StatusBarClass);
+		if (StatusBar)
+		{
+			StatusBar->AddToViewport();
+			AddHealth(0.0f);
+			AddStamina(0.0f);
+		}
+	}
 }
 // Move 입력 시 호출되는 함수
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
 	if (!CanMove())
-		return;			  // 이동 가능 체크
-	bIsAttacking = false; // 공격 플래그 리셋
+		return;
+	bIsAttacking = false; // 공격 상태 해제
 
 	FVector2D Input = Value.Get<FVector2D>(); // X=Right, Y=Forward
 	if (Input.X == 0.f && Input.Y == 0.f)
@@ -116,45 +129,49 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 	const FVector CamF = FRotationMatrix(Yaw).GetUnitAxis(EAxis::X);	  // 카메라 전방
 	const FVector CamR = FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y);	  // 카메라 우측
 
-	FVector WorldInput = CamF * Input.Y + CamR * Input.X; // 월드 입력 벡터
-	float InLen = WorldInput.Size();					  // 입력 길이
-	if (InLen <= KINDA_SMALL_NUMBER)
-		return; // 안전 체크
-
-	FVector MoveDir = WorldInput / InLen; // 이동 방향(단위벡터)
-
-	FVector Facing = GetActorForwardVector();
-	Facing.Z = 0.f;
-	Facing = Facing.GetSafeNormal(); // 플레이어 바라보는 방향
-	if (Facing.IsNearlyZero())
+	/* AI 작성 코드 */
 	{
-		AddMovementInput(MoveDir, InLen);
-		MovementState = EMovementState::MS_Moving;
-		return;
-	} // Facing 이상시 기본 처리
+		FVector WorldInput = CamF * Input.Y + CamR * Input.X; // 월드 입력 벡터
+		float InLen = WorldInput.Size();					  // 입력 길이
+		if (InLen <= KINDA_SMALL_NUMBER)
+			return; // 안전 체크
 
-	float Dot = FVector::DotProduct(MoveDir, Facing); // 정렬도 (-1..1)
-	if (Dot >= AlignmentThreshold)
-	{
-		AddMovementInput(MoveDir, InLen);
-		MovementState = EMovementState::MS_Moving;
-		return;
-	} // 거의 일치하면 감속 없음
+		FVector MoveDir = WorldInput / InLen; // 이동 방향(단위벡터)
 
-	FVector Right = FVector::CrossProduct(FVector::UpVector, Facing).GetSafeNormal(); // 플레이어 우측 벡터
-	float ForwardComp = FVector::DotProduct(MoveDir, Facing);						  // 정면 컴포넌트
-	float RightComp = FVector::DotProduct(MoveDir, Right);							  // 측면 컴포넌트
+		FVector Facing = GetActorForwardVector();
+		Facing.Z = 0.f;
+		Facing = Facing.GetSafeNormal(); // 플레이어 바라보는 방향
+		if (Facing.IsNearlyZero())
+		{
+			AddMovementInput(MoveDir, InLen);
+			MovementState = EMovementState::MS_Moving;
+			return;
+		} // Facing 이상시 기본 처리
 
-	float AdjForward = (ForwardComp > 0.f) ? ForwardComp : (ForwardComp * BackwardMovementMultiplier); // 전/후 보정
-	float AdjRight = RightComp * SideMovementMultiplier;											   // 좌우 보정
+		float Dot = FVector::DotProduct(MoveDir, Facing); // 정렬도 (-1..1)
+		if (Dot >= AlignmentThreshold)
+		{
+			AddMovementInput(MoveDir, InLen);
+			MovementState = EMovementState::MS_Moving;
+			return;
+		} // 거의 일치하면 감속 없음
 
-	FVector AdjDir = Facing * AdjForward + Right * AdjRight; // 보정된 방향 벡터
-	float Scale = InLen * AdjDir.Size();					 // 최종 스케일
-	if (Scale > KINDA_SMALL_NUMBER)
-	{
-		AddMovementInput(AdjDir.GetSafeNormal(), Scale);
-		MovementState = EMovementState::MS_Moving;
-	} // 입력 적용
+		FVector Right = FVector::CrossProduct(FVector::UpVector, Facing).GetSafeNormal(); // 플레이어 우측 벡터
+		float ForwardComp = FVector::DotProduct(MoveDir, Facing);						  // 정면 컴포넌트
+		float RightComp = FVector::DotProduct(MoveDir, Right);							  // 측면 컴포넌트
+
+		float AdjForward = (ForwardComp > 0.f) ? ForwardComp : (ForwardComp * BackwardMovementMultiplier); // 전/후 보정
+		float AdjRight = RightComp * SideMovementMultiplier;											   // 좌우 보정
+
+		FVector AdjDir = Facing * AdjForward + Right * AdjRight; // 보정된 방향 벡터
+		float Scale = InLen * AdjDir.Size();					 // 최종 스케일
+		if (Scale > KINDA_SMALL_NUMBER)
+		{
+			AddMovementInput(AdjDir.GetSafeNormal(), Scale); // 입력 적용
+			MovementState = EMovementState::MS_Moving;
+		}
+	}
+	/* AI 작성 코드 */
 }
 
 // Look 입력 시 호출되는 함수
@@ -177,20 +194,20 @@ bool APlayerCharacter::SearchFocusTarget()
 		return false;
 	}
 
-	// 1) 카메라 위치·방향
+	// 카메라 위치·방향
 	FVector CamLoc;
 	FRotator CamRot;
 	PlayerController->GetPlayerViewPoint(CamLoc, CamRot); // 플레이어의 카메라 위치/회전 정보를 가져옴
 	FVector CamForward = CamRot.Vector();
 
-	// 2) Sweep 파라미터
+	// Sweep 파라미터
 	FVector BoxHalfExtents = FVector(300.f, 500.f, 500.f);
 
 	const float SweepDistance = FocusSearchRadius;
 	FVector SweepStart = CamLoc + CamForward * 800;
 	FVector SweepEnd = CamLoc + CamForward * SweepDistance;
 
-	// 3) SweepMultiByObjectType 호출
+	// SweepMultiByObjectType 호출
 	FCollisionShape BoxShape = FCollisionShape::MakeBox(BoxHalfExtents);
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
@@ -207,17 +224,17 @@ bool APlayerCharacter::SearchFocusTarget()
 		BoxShape,
 		Params);
 
-	// 4) 디버그: 스윕 시작/끝 박스 + 연결선
-	DrawDebugBox(GetWorld(), SweepStart, BoxHalfExtents, FQuat::Identity, FColor::Red, false, 1.0f, 0, 2.0f);
-	DrawDebugBox(GetWorld(), SweepEnd, BoxHalfExtents, FQuat::Identity, FColor::Cyan, false, 1.0f, 0, 2.0f);
-	DrawDebugLine(GetWorld(), SweepStart, SweepEnd, FColor::Green, false, 1.0f, 0, 5.0f);
+	// 디버그: 스윕 시작/끝 박스 + 연결선
+	// DrawDebugBox(GetWorld(), SweepStart, BoxHalfExtents, FQuat::Identity, FColor::Red, false, 1.0f, 0, 2.0f);
+	// DrawDebugBox(GetWorld(), SweepEnd, BoxHalfExtents, FQuat::Identity, FColor::Cyan, false, 1.0f, 0, 2.0f);
+	// DrawDebugLine(GetWorld(), SweepStart, SweepEnd, FColor::Green, false, 1.0f, 0, 5.0f);
 
 	if (!bHitAny)
 	{
 		return false;
 	}
 
-	// 5) 히트 결과 순회하며 Pawn만 배열에 추가
+	// 히트 결과 순회하며 Pawn만 배열에 추가
 	for (const FHitResult &HR : HitResults)
 	{
 		if (APawn *P = Cast<APawn>(HR.GetActor()))
@@ -364,6 +381,24 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		DoAttackTrace();
 	}
+
+	if (MovementState == EMovementState::MS_Moving && GetVelocity().Size() == 0)
+	{
+		MovementState = EMovementState::MS_Idle;
+	}
+
+	if (bIsRunning)
+	{
+		AddStamina(-StaminaRunCost);
+	}
+	else
+	{
+		if (!bIsAttacking && CanMove() && Stamina < MaxStamina)
+		{
+			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
+		}
+	}
+	// UpdateUI();
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent)
@@ -414,10 +449,10 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	if (NotifyName == TEXT("EndHit"))
 	{
 		MovementState = EMovementState::MS_Idle;
-		// bIsHit = false;
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
+
 		bCanAttack = true;
 	}
 }
@@ -468,6 +503,13 @@ void APlayerCharacter::PlayLightAttackMontage()
 	ResetHitCharacters(); // 피격 캐릭터들, 리액션 가능하도록 초기화
 	bCanCombo = false;
 	UAnimMontage *CurrentAnimMontage;
+	if (!AddStamina(-StaminaLightAttackCost))
+	{
+		CurrentAttackCombo = 0;
+		bIsAttacking = false;
+		MovementState = EMovementState::MS_Idle;
+		return;
+	}
 	if (bIsRunning && GetVelocity().Size() >= (RunSpeed * 0.85f)) // 플레이어 캐릭터 현재 속도가 달리기 속도의 85% 이상일 때, 대쉬 공격 재생
 	{
 		CurrentAnimMontage = RunAttackMontage;
@@ -482,6 +524,7 @@ void APlayerCharacter::PlayLightAttackMontage()
 	{
 		bIsAttacking = true;
 		MovementState = EMovementState::MS_Attacking;
+
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
 	}
@@ -510,7 +553,6 @@ void APlayerCharacter::PlayHitMontage(int32 index)
 	bIsHit = true;
 	if (CurrentAnimMontage)
 	{
-		// MovementState = EMovementState::MS_Hit;
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 		UE_LOG(LogTemp, Log, TEXT("Hit Montage[%d] Played"), index);
 	}
@@ -525,7 +567,7 @@ void APlayerCharacter::Landed(const FHitResult &Hit)
 
 void APlayerCharacter::Jump()
 {
-	if (bIsAttacking) // 공격 중 Jump 방지
+	if (!CanMove()) // 공격 중 Jump 방지
 	{
 		return;
 	}
@@ -534,7 +576,8 @@ void APlayerCharacter::Jump()
 
 void APlayerCharacter::Run()
 {
-	if (!bIsRunning && CanMove())
+
+	if (!bIsRunning && AddStamina(-StaminaRunStartCost) && CanMove())
 	{
 		bIsRunning = true;
 		bIsAttacking = false;
@@ -555,7 +598,7 @@ void APlayerCharacter::StopRunning()
 void APlayerCharacter::Dodge()
 {
 
-	if (!CanMove() || !bIsFocusing || bIsDodging)
+	if (!bIsFocusing || bIsDodging || !CanMove() || !AddStamina(-StaminaDodgeCost))
 		return;
 	bWantCombo = false;
 	MovementState = EMovementState::MS_Dodging;
@@ -635,7 +678,7 @@ void APlayerCharacter::DoAttackTrace()
 							UE_LOG(LogTemp, Log, TEXT("[AttackTrace] Hit Pawn Actor: %s"),
 								   *Hit.GetActor()->GetName());
 							EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
-							switch (CurrentAttackCombo)
+							switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
 							{
 							case 1:
 							case 3:
@@ -702,3 +745,41 @@ void APlayerCharacter::ResetHitCharacters()
 	}
 	HitCharacters.Empty();
 }
+
+bool APlayerCharacter::AddHealth(float Amount)
+{
+	if (Health + Amount < 0)
+	{
+		return false;
+	}
+	Health += Amount;
+	if (Health > MaxHealth)
+	{
+		Health = MaxHealth;
+	}
+	StatusBar->SetHealthPercent(Health / MaxHealth);
+	return true;
+}
+bool APlayerCharacter::AddStamina(float Amount)
+{
+	if (Stamina + Amount < 0)
+	{
+		StopRunning();
+		return false;
+	}
+	Stamina += Amount;
+	if (Stamina > MaxStamina)
+	{
+		Stamina = MaxStamina;
+	}
+	StatusBar->SetStaminaPercent(Stamina / MaxStamina);
+	return true;
+}
+// void APlayerCharacter::UpdateUI()
+// {
+// 	if (StatusBar)
+// 	{
+// 		StatusBar->SetStaminaPercent(Stamina / MaxStamina);
+// 		StatusBar->SetHealthPercent(Health / MaxHealth);
+// 	}
+// }
