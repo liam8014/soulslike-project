@@ -373,7 +373,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		UpdateFocusCamera(DeltaTime);
 	}
-	if (MoveComp->IsFalling())
+	if (MoveComp->IsFalling() && MovementState != EMovementState::MS_Falling)
 	{
 		MovementState = EMovementState::MS_Falling;
 	}
@@ -398,6 +398,11 @@ void APlayerCharacter::Tick(float DeltaTime)
 			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
 		}
 	}
+	// if (FunctionCount > 2 && ++TickCount % 100 == 0)
+	// {
+	// 	UE_LOG(LogTemp, Log, TEXT("Update Function Call / Tick Count : %d / %d"), FunctionCount, TickCount);
+	// }
+
 	// UpdateUI();
 }
 
@@ -444,6 +449,8 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	{
 		MovementState = EMovementState::MS_Idle;
 		bCanAttack = true;
+		CurrentAttackCombo = 0;
+		bIsAttacking = false;
 		bIsDodging = false;
 	}
 	if (NotifyName == TEXT("EndHit"))
@@ -779,6 +786,7 @@ bool APlayerCharacter::AddStamina(float Amount)
 // {
 // 	if (StatusBar)
 // 	{
+// 		FunctionCount++;
 // 		StatusBar->SetStaminaPercent(Stamina / MaxStamina);
 // 		StatusBar->SetHealthPercent(Health / MaxHealth);
 // 	}

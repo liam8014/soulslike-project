@@ -62,7 +62,7 @@ public:
 	UPROPERTY()
 	UStatusBar *StatusBar;
 
-	// void UpdateUI();
+	//void UpdateUI();
 	/* 체력 및 스테미나 */
 public:
 	bool AddHealth(float Amount);
@@ -73,8 +73,8 @@ protected:
 	float Health = MaxHealth;
 	float MaxStamina = 100.0f;
 	float Stamina = MaxStamina;
-	const float StaminaRegenAmount = 0.15f;	   // 스테미나 기본 회복량
-	
+	const float StaminaRegenAmount = 0.15f; // 스테미나 기본 회복량
+
 	const float StaminaLightAttackCost = 6.0f; // 스테미나 기본 공격 소모량
 	const float StaminaRunStartCost = 2.5f;	   // 달리기 시작 소모량
 	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
@@ -228,6 +228,8 @@ public:
 	virtual void
 	Tick(float DeltaTime) override;
 
+	//int32 FunctionCount = 0;
+	//int32 TickCount = 0;
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
 };
