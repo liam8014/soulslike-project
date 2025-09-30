@@ -716,6 +716,7 @@ void APlayerCharacter::DoAttackTrace()
 							if (HitPlayerCharacter->bIsGuarding && BlockAttackMontage) // 방어 중인 공격자를 만났을 때
 							{
 								PlayAnimMontage(BlockAttackMontage, 1.0f);
+								AddStamina(-10.0f);
 								bCanAttack = false;
 							}
 						}
@@ -775,11 +776,3 @@ bool APlayerCharacter::AddStamina(float Amount)
 	StatusBar->SetStaminaPercent(Stamina / MaxStamina);
 	return true;
 }
-// void APlayerCharacter::UpdateUI()
-// {
-// 	if (StatusBar)
-// 	{
-// 		StatusBar->SetStaminaPercent(Stamina / MaxStamina);
-// 		StatusBar->SetHealthPercent(Health / MaxHealth);
-// 	}
-// }

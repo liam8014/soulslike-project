@@ -62,7 +62,6 @@ public:
 	UPROPERTY()
 	UStatusBar *StatusBar;
 
-	// void UpdateUI();
 	/* 체력 및 스테미나 */
 public:
 	bool AddHealth(float Amount);
@@ -73,8 +72,8 @@ protected:
 	float Health = MaxHealth;
 	float MaxStamina = 100.0f;
 	float Stamina = MaxStamina;
-	const float StaminaRegenAmount = 0.15f;	   // 스테미나 기본 회복량
-	
+	const float StaminaRegenAmount = 0.2f; // 스테미나 기본 회복량
+
 	const float StaminaLightAttackCost = 6.0f; // 스테미나 기본 공격 소모량
 	const float StaminaRunStartCost = 2.5f;	   // 달리기 시작 소모량
 	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
@@ -200,7 +199,7 @@ protected:
 	float AlignmentThreshold = 0.9f; // 전방 기준 임계
 
 	/* 조작 (달리기)*/
-	float RunSpeed = 1300;
+	float RunSpeed = 1000;
 	bool bIsRunning = false;
 
 	/* 조작(점프) */
