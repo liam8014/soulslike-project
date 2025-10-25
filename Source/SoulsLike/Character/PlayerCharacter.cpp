@@ -119,6 +119,7 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 {
 	if (!CanMove())
 		return;
+	
 	bIsAttacking = false; // 공격 상태 해제
 
 	FVector2D Input = Value.Get<FVector2D>(); // X=Right, Y=Forward
@@ -393,7 +394,8 @@ void APlayerCharacter::Tick(float DeltaTime)
 	}
 	else
 	{
-		if (!bIsAttacking && CanMove() && Stamina < MaxStamina)
+
+		if (!bIsAttacking && !bIsDodging && Stamina < MaxStamina)
 		{
 			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
 		}
@@ -454,13 +456,15 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	if (NotifyName == TEXT("EndHit"))
 	{
 		MovementState = EMovementState::MS_Idle;
-		bIsHit = false;
-		bIsAttacking = false;
-		bCanAttack = true;
+		// bIsHit = false;
+		// bIsAttacking = false;
+		// bIsDodging = false;
+		// bCanAttack = true;
+		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
-
+		bIsAttacking = false;
 		bCanAttack = true;
 	}
 }
@@ -474,7 +478,7 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 		{
 			AddStamina(StaminaLightAttackCost);
 		}
-		if (bWantCombo || bAutoAttack)
+		if (bWantCombo || bAutoAttack && bCanAttack)
 		{
 			bWantCombo = false;
 			CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
@@ -607,8 +611,8 @@ void APlayerCharacter::StopRunning()
 {
 	if (bIsRunning)
 	{
-		ResetMovement();
 		bIsRunning = false;
+		bIsDodging = false;
 		MoveComp->MaxWalkSpeed = WalkSpeed;
 	}
 }
@@ -633,14 +637,13 @@ void APlayerCharacter::ResetMovement()
 {
 	bIsRunning = false;
 	bIsDodging = false;
-	bIsGuarding = false;
 	bIsAttacking = false;
 	bIsHit = false;
 }
 
 void APlayerCharacter::Guard()
 {
-	if (!bIsGuarding)
+	if (!bIsGuarding && GetStamina() > 10)
 	{
 		bIsGuarding = true;
 		MoveComp->MaxWalkSpeed = WalkSpeed * 0.8;
@@ -721,6 +724,15 @@ void APlayerCharacter::DoAttackTrace()
 								break;
 							}
 							HitPlayerCharacter->DoHitReaction(AttackDirection);
+							if (!HitPlayerCharacter->bIsGuarding)
+							{
+								HitPlayerCharacter->AddHealth(-LightAttackDamage);
+							}
+							else
+							{
+								HitPlayerCharacter->AddHealth(-LightAttackDamage * 0.3);
+							}
+
 							// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
 							FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
 							ToAttacker.Z = 0.f;
@@ -742,9 +754,11 @@ void APlayerCharacter::DoAttackTrace()
 							}
 							if (HitPlayerCharacter->bIsGuarding && BlockAttackMontage) // 방어 중인 공격자를 만났을 때
 							{
+								CurrentAttackCombo = 0;
 								PlayAnimMontage(BlockAttackMontage, 1.0f);
 								AddStamina(-10.0f);
 								bCanAttack = false;
+								bCanCombo = false;
 							}
 						}
 					}
@@ -788,10 +802,15 @@ bool APlayerCharacter::AddHealth(float Amount)
 	StatusBar->SetHealthPercent(Health / MaxHealth);
 	return true;
 }
+float APlayerCharacter::GetHealth()
+{
+	return Health;
+}
 bool APlayerCharacter::AddStamina(float Amount)
 {
 	if (Stamina + Amount < 0)
 	{
+		StopGuarding();
 		StopRunning();
 		return false;
 	}
@@ -802,4 +821,8 @@ bool APlayerCharacter::AddStamina(float Amount)
 	}
 	StatusBar->SetStaminaPercent(Stamina / MaxStamina);
 	return true;
+}
+float APlayerCharacter::GetStamina()
+{
+	return Stamina;
 }

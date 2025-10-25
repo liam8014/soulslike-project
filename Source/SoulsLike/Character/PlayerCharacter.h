@@ -66,6 +66,8 @@ public:
 public:
 	bool AddHealth(float Amount);
 	bool AddStamina(float Amount);
+	float GetHealth();
+	float GetStamina();
 
 protected:
 	float MaxHealth = 100.0f;
@@ -153,6 +155,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float LightAttackRange = 120.0f; // 기본 공격 범위
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float LightAttackDamage = 10.0f;
 
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
