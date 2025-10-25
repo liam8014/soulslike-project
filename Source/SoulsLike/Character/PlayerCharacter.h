@@ -185,6 +185,7 @@ protected:
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
 	bool CanMove();
+	void ResetMovement();
 
 	/* 조작 (걷기)*/
 	float WalkSpeed = 500;
@@ -221,6 +222,10 @@ protected:
 
 	void Guard();
 	void StopGuarding();
+
+	/* 더미 기능 */
+	UPROPERTY(EditAnywhere, Category = "Dummy")
+	bool bAutoAttack = false;
 
 public:
 	// Called every frame

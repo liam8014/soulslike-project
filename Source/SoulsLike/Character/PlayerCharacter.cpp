@@ -399,6 +399,12 @@ void APlayerCharacter::Tick(float DeltaTime)
 		}
 	}
 	// UpdateUI();
+
+	if (CanMove() && bAutoAttack && !bIsAttacking)
+	{
+		FInputActionValue tmp;
+		LightAttack(tmp);
+	}
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent)
@@ -438,7 +444,6 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = true;
-		// UE_LOG(LogTemp, Log, TEXT("Combo Window Open"));
 	}
 	if (NotifyName == TEXT("EndDodge"))
 	{
@@ -449,6 +454,9 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	if (NotifyName == TEXT("EndHit"))
 	{
 		MovementState = EMovementState::MS_Idle;
+		bIsHit = false;
+		bIsAttacking = false;
+		bCanAttack = true;
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
@@ -462,7 +470,11 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = false;
-		if (bWantCombo)
+		if (bAutoAttack)
+		{
+			AddStamina(StaminaLightAttackCost);
+		}
+		if (bWantCombo || bAutoAttack)
 		{
 			bWantCombo = false;
 			CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
@@ -485,6 +497,7 @@ void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 {
 	if (!bCanAttack)
 		return;
+
 	if (!bIsAttacking && CanMove()) // 첫 공격 시작
 	{
 		bIsAttacking = true;
@@ -544,6 +557,10 @@ void APlayerCharacter::DoHitReaction(EAttackDirection ad)
 		index = 2;
 		break;
 	}
+	if (bIsGuarding)
+	{
+		AddStamina(-10.0f);
+	}
 	PlayHitMontage(index);
 }
 
@@ -590,6 +607,7 @@ void APlayerCharacter::StopRunning()
 {
 	if (bIsRunning)
 	{
+		ResetMovement();
 		bIsRunning = false;
 		MoveComp->MaxWalkSpeed = WalkSpeed;
 	}
@@ -609,6 +627,15 @@ void APlayerCharacter::Dodge()
 bool APlayerCharacter::CanMove()
 {
 	return (MovementState == EMovementState::MS_Moving || MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Dodging);
+}
+
+void APlayerCharacter::ResetMovement()
+{
+	bIsRunning = false;
+	bIsDodging = false;
+	bIsGuarding = false;
+	bIsAttacking = false;
+	bIsHit = false;
 }
 
 void APlayerCharacter::Guard()
