@@ -118,8 +118,10 @@ void APlayerCharacter::BeginPlay()
 void APlayerCharacter::Move(const FInputActionValue &Value)
 {
 	if (!CanMove())
+	{
+		UE_LOG(LogTemp, Error, TEXT("You can't move now!"));
 		return;
-	
+	}
 	bIsAttacking = false; // 공격 상태 해제
 
 	FVector2D Input = Value.Get<FVector2D>(); // X=Right, Y=Forward
@@ -130,7 +132,6 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 	const FVector CamF = FRotationMatrix(Yaw).GetUnitAxis(EAxis::X);	  // 카메라 전방
 	const FVector CamR = FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y);	  // 카메라 우측
 
-	/* AI 작성 코드 */
 	{
 		FVector WorldInput = CamF * Input.Y + CamR * Input.X; // 월드 입력 벡터
 		float InLen = WorldInput.Size();					  // 입력 길이
@@ -145,7 +146,7 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 		if (Facing.IsNearlyZero())
 		{
 			AddMovementInput(MoveDir, InLen);
-			MovementState = EMovementState::MS_Moving;
+			ChangeMovement(EMovementState::MS_Moving);
 			return;
 		} // Facing 이상시 기본 처리
 
@@ -153,7 +154,7 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 		if (Dot >= AlignmentThreshold)
 		{
 			AddMovementInput(MoveDir, InLen);
-			MovementState = EMovementState::MS_Moving;
+			ChangeMovement(EMovementState::MS_Moving);
 			return;
 		} // 거의 일치하면 감속 없음
 
@@ -169,10 +170,9 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 		if (Scale > KINDA_SMALL_NUMBER)
 		{
 			AddMovementInput(AdjDir.GetSafeNormal(), Scale); // 입력 적용
-			MovementState = EMovementState::MS_Moving;
+			ChangeMovement(EMovementState::MS_Moving);
 		}
 	}
-	/* AI 작성 코드 */
 }
 
 // Look 입력 시 호출되는 함수
@@ -376,7 +376,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 	}
 	if (MoveComp->IsFalling())
 	{
-		MovementState = EMovementState::MS_Falling;
+		ChangeMovement(EMovementState::MS_Falling);
 	}
 	if (bIsAttacking && bCanCombo)
 	{
@@ -385,7 +385,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 
 	if (MovementState == EMovementState::MS_Moving && GetVelocity().Size() == 0)
 	{
-		MovementState = EMovementState::MS_Idle;
+		ChangeMovement(EMovementState::MS_Idle);
 	}
 
 	if (bIsRunning)
@@ -404,8 +404,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 
 	if (CanMove() && bAutoAttack && !bIsAttacking)
 	{
-		FInputActionValue tmp;
-		LightAttack(tmp);
+		LightAttack();
 	}
 }
 
@@ -420,7 +419,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
 		EnhancedInput->BindAction(SwitchFocusAction, ETriggerEvent::Started, this, &APlayerCharacter::SwitchFocus);
 		EnhancedInput->BindAction(ChangeFocusTargetAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeFocusTarget);
-		EnhancedInput->BindAction(LightAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::LightAttack);
+		EnhancedInput->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::Attack);
 
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
@@ -449,23 +448,31 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	}
 	if (NotifyName == TEXT("EndDodge"))
 	{
-		MovementState = EMovementState::MS_Idle;
+		ChangeMovement(EMovementState::MS_Idle);
 		bCanAttack = true;
 		bIsDodging = false;
 	}
 	if (NotifyName == TEXT("EndHit"))
 	{
-		MovementState = EMovementState::MS_Idle;
 		// bIsHit = false;
 		// bIsAttacking = false;
 		// bIsDodging = false;
 		// bCanAttack = true;
+		bCanAttack = true;
 		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
-		bIsAttacking = false;
-		bCanAttack = true;
+		ResetMovement();
+	}
+	if (NotifyName == TEXT("EndParry"))
+	{
+		bIsParrying = false;
+		ResetMovement();
+	}
+	if (NotifyName == TEXT("EndStun"))
+	{
+		ResetMovement();
 	}
 }
 
@@ -474,7 +481,7 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = false;
-		if (bAutoAttack)
+		if (bAutoAttack) // 자동 공격 더미용 스태미나 회복
 		{
 			AddStamina(StaminaLightAttackCost);
 		}
@@ -488,19 +495,31 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 			}
 			PlayLightAttackMontage();
 		}
-		else
+		else if (bIsAttacking)
 		{
 			CurrentAttackCombo = 0;
 			bIsAttacking = false;
-			MovementState = EMovementState::MS_Idle;
+			ResetMovement();
 		}
 	}
 }
-
-void APlayerCharacter::LightAttack(const FInputActionValue &Value)
+void APlayerCharacter::Attack()
+{
+	if (!bIsGuarding)
+	{
+		LightAttack();
+	}
+	else
+	{
+		Parry();
+	}
+}
+void APlayerCharacter::LightAttack()
 {
 	if (!bCanAttack)
+	{
 		return;
+	}
 
 	if (!bIsAttacking && CanMove()) // 첫 공격 시작
 	{
@@ -515,6 +534,29 @@ void APlayerCharacter::LightAttack(const FInputActionValue &Value)
 		bWantCombo = true;
 	}
 }
+void APlayerCharacter::Parry()
+{
+	if (ParryMontage)
+	{
+		bIsParrying = true;
+		bIsGuarding = false;
+		PlayAnimMontage(ParryMontage, 1.0f);
+	}
+}
+void APlayerCharacter::Stun()
+{
+	bIsAttacking = false;
+	bCanAttack = false;
+	if (StunMontage)
+	{
+		ChangeMovement(EMovementState::MS_Stun);
+		PlayAnimMontage(StunMontage, 1.0f);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("No StunMontage!"));
+	}
+}
 void APlayerCharacter::PlayLightAttackMontage()
 {
 	ResetHitCharacters(); // 피격 캐릭터들, 리액션 가능하도록 초기화
@@ -524,7 +566,7 @@ void APlayerCharacter::PlayLightAttackMontage()
 	{
 		CurrentAttackCombo = 0;
 		bIsAttacking = false;
-		MovementState = EMovementState::MS_Idle;
+		ChangeMovement(EMovementState::MS_Idle);
 		return;
 	}
 	if (bIsRunning && GetVelocity().Size() >= (RunSpeed * 0.85f)) // 플레이어 캐릭터 현재 속도가 달리기 속도의 85% 이상일 때, 대쉬 공격 재생
@@ -540,7 +582,7 @@ void APlayerCharacter::PlayLightAttackMontage()
 	if (CurrentAnimMontage && !bIsDodging)
 	{
 		bIsAttacking = true;
-		MovementState = EMovementState::MS_Attacking;
+		ChangeMovement(EMovementState::MS_Attacking);
 
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
@@ -549,6 +591,7 @@ void APlayerCharacter::PlayLightAttackMontage()
 void APlayerCharacter::DoHitReaction(EAttackDirection ad)
 {
 	int32 index = 0;
+	bIsAttacking = false; // 피격 중 공격 판정 방지
 	switch (ad)
 	{
 	case EAttackDirection::AD_Left:
@@ -560,10 +603,6 @@ void APlayerCharacter::DoHitReaction(EAttackDirection ad)
 	case EAttackDirection::AD_Forward:
 		index = 2;
 		break;
-	}
-	if (bIsGuarding)
-	{
-		AddStamina(-10.0f);
 	}
 	PlayHitMontage(index);
 }
@@ -583,7 +622,7 @@ void APlayerCharacter::Landed(const FHitResult &Hit)
 {
 	Super::Landed(Hit);
 	bJustLanded = true;
-	MovementState = EMovementState::MS_Idle;
+	ChangeMovement(EMovementState::MS_Idle);
 }
 
 void APlayerCharacter::Jump()
@@ -597,11 +636,9 @@ void APlayerCharacter::Jump()
 
 void APlayerCharacter::Run()
 {
-
 	if (!bIsRunning && AddStamina(-StaminaRunStartCost) && CanMove())
 	{
 		bIsRunning = true;
-		bIsAttacking = false;
 		bIsGuarding = false;
 		MoveComp->MaxWalkSpeed = RunSpeed;
 	}
@@ -623,30 +660,55 @@ void APlayerCharacter::Dodge()
 	if (!bIsFocusing || bIsDodging || !CanMove() || !AddStamina(-StaminaDodgeCost))
 		return;
 	bWantCombo = false;
-	MovementState = EMovementState::MS_Dodging;
+	ChangeMovement(EMovementState::MS_Dodging);
 	bIsDodging = true;
 	PlayAnimMontage(DodgeMontage, 1.2f);
 }
 
 bool APlayerCharacter::CanMove()
 {
-	return (MovementState == EMovementState::MS_Moving || MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Dodging);
+	return (MovementState == EMovementState::MS_Moving ||
+			MovementState == EMovementState::MS_Idle ||
+			MovementState == EMovementState::MS_Guarding);
 }
 
 void APlayerCharacter::ResetMovement()
 {
+	ChangeMovement(EMovementState::MS_Idle);
+	bIsParrying = false;
 	bIsRunning = false;
 	bIsDodging = false;
 	bIsAttacking = false;
+	bCanAttack = true;
+	CurrentAttackCombo = 0;
 	bIsHit = false;
 }
+void APlayerCharacter::ChangeMovement(EMovementState ms)
+{
+	if (MovementState != ms)
+	{
+		MovementState = ms;
+		if (GEngine)
+		{
+			// 고정 키: 중복 출력 방지 및 삭제용
+			static const int32 EnumDebugKey = 1001;
 
+			// 이전 메시지 삭제 (있으면 삭제, 없어도 안전)
+			GEngine->RemoveOnScreenDebugMessage(EnumDebugKey);
+
+			// 출력
+			FText Display = EnumDisplayName(MovementState);
+			GEngine->AddOnScreenDebugMessage(EnumDebugKey, 10.0f, FColor::Yellow, Display.ToString());
+		}
+	}
+}
 void APlayerCharacter::Guard()
 {
-	if (!bIsGuarding && GetStamina() > 10)
+	if (!bIsGuarding && GetStamina() > 5)
 	{
 		bIsGuarding = true;
 		MoveComp->MaxWalkSpeed = WalkSpeed * 0.8;
+		ChangeMovement(EMovementState::MS_Guarding);
 	}
 }
 
@@ -654,8 +716,10 @@ void APlayerCharacter::StopGuarding()
 {
 	if (bIsGuarding)
 	{
+		UE_LOG(LogTemp, Log, TEXT("StopGuarding"));
 		bIsGuarding = false;
 		MoveComp->MaxWalkSpeed = WalkSpeed;
+		ChangeMovement(EMovementState::MS_Idle);
 	}
 }
 void APlayerCharacter::DoAttackTrace()
@@ -678,7 +742,7 @@ void APlayerCharacter::DoAttackTrace()
 			FCollisionObjectQueryParams ObjectQueryParams;
 			ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 			TArray<FHitResult> Hits;
-			float SphereRadius = 30.0f;
+			float SphereRadius = 10.0f;
 
 			bool bHit = World->SweepMultiByObjectType(
 				Hits,
@@ -703,7 +767,7 @@ void APlayerCharacter::DoAttackTrace()
 								continue;
 							}
 							HitPlayerCharacter->bIsHit = true;
-							HitPlayerCharacter->MovementState = EMovementState::MS_Hit;
+							HitPlayerCharacter->ChangeMovement(EMovementState::MS_Hit);
 							HitCharacters.Add(HitPlayerCharacter);
 							UE_LOG(LogTemp, Log, TEXT("[AttackTrace] Hit Pawn Actor: %s"),
 								   *Hit.GetActor()->GetName());
@@ -723,14 +787,23 @@ void APlayerCharacter::DoAttackTrace()
 							default:
 								break;
 							}
-							HitPlayerCharacter->DoHitReaction(AttackDirection);
-							if (!HitPlayerCharacter->bIsGuarding)
+							if (!HitPlayerCharacter->bIsParrying)
 							{
-								HitPlayerCharacter->AddHealth(-LightAttackDamage);
+								HitPlayerCharacter->DoHitReaction(AttackDirection);
+							}
+
+							if (HitPlayerCharacter->bIsParrying)
+							{
+								Stun();
+							}
+							else if (HitPlayerCharacter->bIsGuarding)
+							{
+								HitPlayerCharacter->AddHealth(-LightAttackDamage * 0.3);
+								HitPlayerCharacter->AddStamina(-10.0f);
 							}
 							else
 							{
-								HitPlayerCharacter->AddHealth(-LightAttackDamage * 0.3);
+								HitPlayerCharacter->AddHealth(-LightAttackDamage);
 							}
 
 							// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
@@ -752,7 +825,7 @@ void APlayerCharacter::DoAttackTrace()
 								HitPlayerCharacter->SetActorRotation(LookAtRot);
 								// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
 							}
-							if (HitPlayerCharacter->bIsGuarding && BlockAttackMontage) // 방어 중인 공격자를 만났을 때
+							if (HitPlayerCharacter->bIsGuarding && BlockAttackMontage && !HitPlayerCharacter->bIsParrying) // 방어 중인 공격자를 만났을 때
 							{
 								CurrentAttackCombo = 0;
 								PlayAnimMontage(BlockAttackMontage, 1.0f);
@@ -792,6 +865,8 @@ bool APlayerCharacter::AddHealth(float Amount)
 {
 	if (Health + Amount < 0)
 	{
+		Die();
+		Health = 0;
 		return false;
 	}
 	Health += Amount;
@@ -825,4 +900,8 @@ bool APlayerCharacter::AddStamina(float Amount)
 float APlayerCharacter::GetStamina()
 {
 	return Stamina;
+}
+void APlayerCharacter::Die()
+{
+	UE_LOG(LogTemp, Warning, TEXT("%s is Dead."), *GetName());
 }

@@ -22,12 +22,21 @@ enum class EMovementState : uint8
 	MS_Moving UMETA(DisplayName = "Moving"),	   // 이동 상태
 	MS_Attacking UMETA(DisplayName = "Attacking"), // 공격 상태
 	MS_Hit UMETA(DisplayName = "Hit"),			   // 피격 상태
+	MS_Stun UMETA(DisplayName = "Stun"),		   // 스턴 상태
 	MS_Dodging UMETA(DisplayName = "Dodging"),	   // 회피 상태
 	MS_Jumping UMETA(DisplayName = "Jumping"),	   // 점프 초기 상태
 	MS_Falling UMETA(DisplayName = "Falling"),	   // 낙하 상태
 	MS_Guarding UMETA(DisplayName = "Guarding"),   // 가드 상태
 	MS_Dead UMETA(DisplayName = "Dead"),		   // 사망 상태
 };
+
+template <typename TEnum>
+static FText EnumDisplayName(TEnum Value)
+{
+	if (const UEnum *E = StaticEnum<TEnum>())
+		return E->GetDisplayNameTextByValue(static_cast<int64>(Value));
+	return FText::GetEmpty();
+}
 
 UENUM(BlueprintType)
 enum class EAttackDirection : uint8
@@ -48,6 +57,9 @@ public:
 
 	/* 플레이어 상태 */
 	EMovementState MovementState = EMovementState::MS_Idle;
+	void ChangeMovement(EMovementState ms);
+
+	void Die();
 
 	/* UI */
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
@@ -98,7 +110,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ChangeFocusTargetAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> LightAttackAction;
+	TObjectPtr<UInputAction> AttackAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
@@ -112,7 +124,10 @@ protected:
 	void Look(const FInputActionValue &Value);				// 캐릭터의 카메라 방향을 조종한다
 	void SwitchFocus(const FInputActionValue &Value);		// 캐릭터의 포커싱 활용 여부를 전환한다
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
-	void LightAttack(const FInputActionValue &Value);		// 기본 공격(약한 공격)을 한다
+	void Attack();											// 상태에 따라 공격을 한다
+	void Parry();											// 공격을 튕겨내는 패리를 한다
+	void Stun();											// 주춤한다
+	void LightAttack();										// 기본 공격(약한 공격)을 한다
 	void Jump() override;									// 공격 중 점프 비활성화를 위한 오버라이드
 	void Run();												// 캐릭터의 이동속도 상한을 증가시킨다
 	void StopRunning();										// 캐릭터의 이동속도 상한을 기본 속도로 설정한다
@@ -175,6 +190,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *BlockAttackMontage; // 공격 막힘 몽타주 레퍼런스
 
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *ParryMontage; // 패링 몽타주
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *StunMontage; // 스턴 몽타주
+
 	void PlayLightAttackMontage(); // 일반 공격 몽타주 재생
 	void DoAttackTrace();		   // 공격 트레이스
 
@@ -223,7 +244,8 @@ protected:
 	/* 조작 (가드/패링)*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bIsGuarding = false;
-
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	bool bIsParrying = false;
 	void Guard();
 	void StopGuarding();
 
