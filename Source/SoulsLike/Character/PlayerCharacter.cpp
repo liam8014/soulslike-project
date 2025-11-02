@@ -26,6 +26,9 @@
 
 #include "TimerManager.h"
 
+#include "Kismet/GameplayStatics.h" // UGameplayStatics::SetGlobalTimeDilation
+#include "Engine/World.h"			// UWorld
+#include "Containers/Ticker.h"		// FTSTicker, FTickerDelegate
 #include "../UI/StatusBar.h"
 
 // Sets default values
@@ -119,7 +122,6 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 {
 	if (!CanMove())
 	{
-		UE_LOG(LogTemp, Error, TEXT("You can't move now!"));
 		return;
 	}
 	bIsAttacking = false; // 공격 상태 해제
@@ -395,7 +397,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 	else
 	{
 
-		if (!bIsAttacking && !bIsDodging && Stamina < MaxStamina)
+		if ((MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Moving) && Stamina < MaxStamina)
 		{
 			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
 		}
@@ -463,6 +465,7 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
+		UE_LOG(LogTemp, Display, TEXT("End Block Hit"));
 		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndParry"))
@@ -505,13 +508,13 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 }
 void APlayerCharacter::Attack()
 {
-	if (!bIsGuarding)
+	if (bIsGuarding)
 	{
-		LightAttack();
+		Parry();
 	}
 	else
 	{
-		Parry();
+		LightAttack();
 	}
 }
 void APlayerCharacter::LightAttack()
@@ -534,41 +537,21 @@ void APlayerCharacter::LightAttack()
 		bWantCombo = true;
 	}
 }
-void APlayerCharacter::Parry()
-{
-	if (ParryMontage)
-	{
-		bIsParrying = true;
-		bIsGuarding = false;
-		PlayAnimMontage(ParryMontage, 1.0f);
-	}
-}
-void APlayerCharacter::Stun()
-{
-	bIsAttacking = false;
-	bCanAttack = false;
-	if (StunMontage)
-	{
-		ChangeMovement(EMovementState::MS_Stun);
-		PlayAnimMontage(StunMontage, 1.0f);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("No StunMontage!"));
-	}
-}
+
 void APlayerCharacter::PlayLightAttackMontage()
 {
 	ResetHitCharacters(); // 피격 캐릭터들, 리액션 가능하도록 초기화
 	bCanCombo = false;
+	AddStamina(-StaminaLightAttackCost);
 	UAnimMontage *CurrentAnimMontage;
-	if (!AddStamina(-StaminaLightAttackCost))
+	if (GetStamina() < StaminaLightAttackCost)
 	{
 		CurrentAttackCombo = 0;
 		bIsAttacking = false;
 		ChangeMovement(EMovementState::MS_Idle);
 		return;
 	}
+
 	if (bIsRunning && GetVelocity().Size() >= (RunSpeed * 0.85f)) // 플레이어 캐릭터 현재 속도가 달리기 속도의 85% 이상일 때, 대쉬 공격 재생
 	{
 		CurrentAnimMontage = RunAttackMontage;
@@ -584,10 +567,42 @@ void APlayerCharacter::PlayLightAttackMontage()
 		bIsAttacking = true;
 		ChangeMovement(EMovementState::MS_Attacking);
 
-		PlayAnimMontage(CurrentAnimMontage, 1.0f);
-		UE_LOG(LogTemp, Log, TEXT("Combo Stack : %d/%d"), CurrentAttackCombo, AttackMontages.Num());
+		PlayAnimMontage(CurrentAnimMontage, 0.9f);
 	}
 }
+void APlayerCharacter::Parry()
+{
+	if (ParryMontage)
+	{
+		bIsParrying = true;
+		bIsGuarding = false;
+		PlayAnimMontage(ParryMontage, 1.0f);
+	}
+}
+void APlayerCharacter::DoBlockHitReaction()
+{
+	CurrentAttackCombo = 0;
+	PlayAnimMontage(BlockAttackMontage, 1.0f);
+	AddStamina(-10.0f);
+	bCanAttack = false;
+	bIsAttacking = false;
+	bCanCombo = false;
+}
+void APlayerCharacter::Stun()
+{
+	bIsAttacking = false;
+	bCanAttack = false;
+	if (StunMontage)
+	{
+		ChangeMovement(EMovementState::MS_Stun);
+		PlayAnimMontage(StunMontage, 1.0f);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("No StunMontage!"));
+	}
+}
+
 void APlayerCharacter::DoHitReaction(EAttackDirection ad)
 {
 	int32 index = 0;
@@ -614,7 +629,7 @@ void APlayerCharacter::PlayHitMontage(int32 index)
 	if (CurrentAnimMontage)
 	{
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
-		UE_LOG(LogTemp, Log, TEXT("Hit Montage[%d] Played"), index);
+		// UE_LOG(LogTemp, Log, TEXT("Hit Montage[%d] Played"), index);
 	}
 }
 
@@ -636,10 +651,11 @@ void APlayerCharacter::Jump()
 
 void APlayerCharacter::Run()
 {
-	if (!bIsRunning && AddStamina(-StaminaRunStartCost) && CanMove())
+	if (!bIsRunning && GetStamina() >= StaminaRunStartCost && CanMove())
 	{
-		bIsRunning = true;
+		AddStamina(-StaminaRunStartCost);
 		bIsGuarding = false;
+		bIsRunning = true;
 		MoveComp->MaxWalkSpeed = RunSpeed;
 	}
 }
@@ -656,10 +672,10 @@ void APlayerCharacter::StopRunning()
 
 void APlayerCharacter::Dodge()
 {
-
-	if (!bIsFocusing || bIsDodging || !CanMove() || !AddStamina(-StaminaDodgeCost))
+	if (!bIsFocusing || bIsDodging || !CanMove() || GetStamina() < StaminaDodgeCost)
 		return;
 	bWantCombo = false;
+	AddStamina(-StaminaDodgeCost);
 	ChangeMovement(EMovementState::MS_Dodging);
 	bIsDodging = true;
 	PlayAnimMontage(DodgeMontage, 1.2f);
@@ -681,7 +697,7 @@ void APlayerCharacter::ResetMovement()
 	bIsAttacking = false;
 	bCanAttack = true;
 	CurrentAttackCombo = 0;
-	bIsHit = false;
+	// bIsHit = false;
 }
 void APlayerCharacter::ChangeMovement(EMovementState ms)
 {
@@ -805,7 +821,7 @@ void APlayerCharacter::DoAttackTrace()
 							{
 								HitPlayerCharacter->AddHealth(-LightAttackDamage);
 							}
-
+							/*
 							// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
 							FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
 							ToAttacker.Z = 0.f;
@@ -825,13 +841,10 @@ void APlayerCharacter::DoAttackTrace()
 								HitPlayerCharacter->SetActorRotation(LookAtRot);
 								// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
 							}
+								*/
 							if (HitPlayerCharacter->bIsGuarding && BlockAttackMontage && !HitPlayerCharacter->bIsParrying) // 방어 중인 공격자를 만났을 때
 							{
-								CurrentAttackCombo = 0;
-								PlayAnimMontage(BlockAttackMontage, 1.0f);
-								AddStamina(-10.0f);
-								bCanAttack = false;
-								bCanCombo = false;
+								DoBlockHitReaction();
 							}
 						}
 					}
@@ -861,41 +874,44 @@ void APlayerCharacter::ResetHitCharacters()
 	HitCharacters.Empty();
 }
 
-bool APlayerCharacter::AddHealth(float Amount)
+void APlayerCharacter::AddHealth(float Amount)
 {
 	if (Health + Amount < 0)
 	{
 		Die();
 		Health = 0;
-		return false;
+	}
+	else
+	{
+		if (Health > MaxHealth)
+		{
+			Health = MaxHealth;
+		}
 	}
 	Health += Amount;
-	if (Health > MaxHealth)
-	{
-		Health = MaxHealth;
-	}
 	StatusBar->SetHealthPercent(Health / MaxHealth);
-	return true;
 }
 float APlayerCharacter::GetHealth()
 {
 	return Health;
 }
-bool APlayerCharacter::AddStamina(float Amount)
+void APlayerCharacter::AddStamina(float Amount)
 {
 	if (Stamina + Amount < 0)
 	{
+		Stamina = 0;
 		StopGuarding();
 		StopRunning();
-		return false;
 	}
-	Stamina += Amount;
-	if (Stamina > MaxStamina)
+	else
 	{
-		Stamina = MaxStamina;
+		Stamina += Amount;
+		if (Stamina > MaxStamina)
+		{
+			Stamina = MaxStamina;
+		}
 	}
 	StatusBar->SetStaminaPercent(Stamina / MaxStamina);
-	return true;
 }
 float APlayerCharacter::GetStamina()
 {

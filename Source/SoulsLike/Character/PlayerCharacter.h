@@ -76,8 +76,8 @@ public:
 
 	/* 체력 및 스테미나 */
 public:
-	bool AddHealth(float Amount);
-	bool AddStamina(float Amount);
+	void AddHealth(float Amount);
+	void AddStamina(float Amount);
 	float GetHealth();
 	float GetStamina();
 
@@ -125,8 +125,6 @@ protected:
 	void SwitchFocus(const FInputActionValue &Value);		// 캐릭터의 포커싱 활용 여부를 전환한다
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
 	void Attack();											// 상태에 따라 공격을 한다
-	void Parry();											// 공격을 튕겨내는 패리를 한다
-	void Stun();											// 주춤한다
 	void LightAttack();										// 기본 공격(약한 공격)을 한다
 	void Jump() override;									// 공격 중 점프 비활성화를 위한 오버라이드
 	void Run();												// 캐릭터의 이동속도 상한을 증가시킨다
@@ -246,9 +244,13 @@ protected:
 	bool bIsGuarding = false;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bIsParrying = false;
-	void Guard();
-	void StopGuarding();
 
+	void DoBlockHitReaction();
+	void Parry(); // 공격을 튕겨내는 패리를 한다
+	void Guard();
+	void Stun();
+
+	void StopGuarding();
 	/* 더미 기능 */
 	UPROPERTY(EditAnywhere, Category = "Dummy")
 	bool bAutoAttack = false;
@@ -257,7 +259,6 @@ public:
 	// Called every frame
 	virtual void
 	Tick(float DeltaTime) override;
-
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
 };
