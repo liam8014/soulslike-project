@@ -30,6 +30,23 @@ enum class EMovementState : uint8
 	MS_Dead UMETA(DisplayName = "Dead"),		   // 사망 상태
 };
 
+UENUM(BlueprintType)
+enum class EAttackDirection : uint8
+{
+	AD_Left UMETA(DisplayName = "Left"),		 // 좌측
+	AD_Right UMETA(DisplayName = "Right"),		 // 우측
+	AD_Forward UMETA(DisplayName = "Forward"),	 // 정면
+	AD_Backward UMETA(DisplayName = "Backward"), // 후면
+};
+
+UENUM(BlueprintType)
+enum class EHitResult : uint8
+{
+	HR_CleanHit UMETA(DisplayName = "Clean Hit"), // 정타
+	HR_Guard UMETA(DisplayName = "Guarded"),	  // 가드 됨
+	HR_Parry UMETA(DisplayName = "Parried"),	  // 패리 됨
+};
+
 template <typename TEnum>
 static FText EnumDisplayName(TEnum Value)
 {
@@ -37,14 +54,6 @@ static FText EnumDisplayName(TEnum Value)
 		return E->GetDisplayNameTextByValue(static_cast<int64>(Value));
 	return FText::GetEmpty();
 }
-
-UENUM(BlueprintType)
-enum class EAttackDirection : uint8
-{
-	AD_Left UMETA(DisplayName = "Idle"),	// 좌측
-	AD_Right UMETA(DisplayName = "Idle"),	// 우측
-	AD_Forward UMETA(DisplayName = "Idle"), // 정면
-};
 
 UCLASS()
 class SOULSLIKE_API APlayerCharacter : public ACharacter
@@ -177,10 +186,10 @@ protected:
 	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	TArray<UAnimMontage *> HitMontages; // 피격 몽타주 레퍼런스
+	TMap<EAttackDirection, UAnimMontage *> HitMontages; // 피격 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	TArray<UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주 레퍼런스
+	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *RunAttackMontage; // 대쉬공격 몽타주 레퍼런스
@@ -194,16 +203,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *StunMontage; // 스턴 몽타주
 
-	void PlayLightAttackMontage(); // 일반 공격 몽타주 재생
-	void DoAttackTrace();		   // 공격 트레이스
+	void AttackTrace(); // 공격 트레이스
 
 	/* 전투 (피격)*/
 	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
 
-	void DoHitReaction(EAttackDirection ad); // 피격 반응
-	// void PlayHitMontage();			  // 피격 몽타주 재생
-	void PlayHitMontage(int32 index); // 피격 몽타주 선택 재생
-	void ResetHitCharacters();		  // 피격 캐릭터 배열 초기화
+	void PlayHitMontage(EAttackDirection ad);		   // 피격 몽타주 재생
+	void ResetHitCharacters();						   // 피격 캐릭터 배열 초기화
+	EHitResult Hit(float damage, EAttackDirection ad); // 피격
 
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
