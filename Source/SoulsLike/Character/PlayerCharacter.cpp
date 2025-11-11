@@ -380,7 +380,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		ChangeMovement(EMovementState::MS_Falling);
 	}
-	if (bIsAttacking && bCanCombo)
+	if (bIsSweeping)
 	{
 		AttackTrace();
 	}
@@ -402,7 +402,6 @@ void APlayerCharacter::Tick(float DeltaTime)
 			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
 		}
 	}
-	// UpdateUI();
 
 	if (CanMove() && bAutoAttack && !bIsAttacking)
 	{
@@ -456,16 +455,11 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	}
 	if (NotifyName == TEXT("EndHit"))
 	{
-		// bIsHit = false;
-		// bIsAttacking = false;
-		// bIsDodging = false;
-		// bCanAttack = true;
 		bCanAttack = true;
 		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
-		UE_LOG(LogTemp, Display, TEXT("End Block Hit"));
 		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndParry"))
@@ -476,6 +470,10 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	if (NotifyName == TEXT("EndStun"))
 	{
 		ResetMovement();
+	}
+	if (NotifyName == TEXT("Sweep"))
+	{
+		bIsSweeping = true;
 	}
 }
 
@@ -505,6 +503,10 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 			ResetMovement();
 		}
 	}
+	if (NotifyName == TEXT("Sweep"))
+	{
+		bIsSweeping = false;
+	}
 }
 void APlayerCharacter::Attack()
 {
@@ -514,7 +516,11 @@ void APlayerCharacter::Attack()
 	}
 	else // 일반 공격
 	{
-		if (!bCanAttack)
+		if (bCanCombo) // 플레이어가 콤보 연속 입력 시
+		{
+			bWantCombo = true;
+		}
+		if (!bCanAttack || !CanMove())
 		{
 			return;
 		}
@@ -523,14 +529,14 @@ void APlayerCharacter::Attack()
 			LightAttack();
 			return;
 		}
-		if (bCanCombo) // 플레이어가 콤보 연속 입력 시
-		{
-			bWantCombo = true;
-		}
 	}
 }
 void APlayerCharacter::LightAttack()
 {
+	if (!bCanAttack)
+	{
+		return;
+	}
 	if (GetStamina() < StaminaLightAttackCost)
 	{
 		CurrentAttackCombo = 0;
@@ -581,7 +587,7 @@ void APlayerCharacter::Parry()
 		}
 	}
 }
-void APlayerCharacter::DoBlockHitReaction()
+void APlayerCharacter::ReactBlocked()
 {
 	CurrentAttackCombo = 0;
 	PlayAnimMontage(BlockAttackMontage, 1.0f);
@@ -590,7 +596,7 @@ void APlayerCharacter::DoBlockHitReaction()
 	bIsAttacking = false;
 	bCanCombo = false;
 }
-void APlayerCharacter::Stun()
+void APlayerCharacter::ReactStunned()
 {
 	bIsAttacking = false;
 	bCanAttack = false;
@@ -600,19 +606,20 @@ void APlayerCharacter::Stun()
 		PlayAnimMontage(StunMontage, 1.0f);
 	}
 }
-EHitResult APlayerCharacter::Hit(float damage, EAttackDirection ad)
+EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 {
 	int32 index = 0;
 	bIsAttacking = false; // 피격 중 공격 판정 방지
+	bCanAttack = false;
 	EHitResult res;
-	ChangeMovement(EMovementState::MS_Hit);
-	bIsHit = true;
+	bIsSwept = true;
 	if (bIsParrying)
 	{
 		res = EHitResult::HR_Parry;
 	}
 	else
 	{
+		bIsHitting = true;
 		if (bIsGuarding)
 		{
 			AddHealth(-damage * 0.3);
@@ -624,6 +631,7 @@ EHitResult APlayerCharacter::Hit(float damage, EAttackDirection ad)
 			AddHealth(-damage);
 			res = EHitResult::HR_CleanHit;
 		}
+		LaunchCharacter(-GetActorForwardVector() * dist, true, true);
 		PlayHitMontage(ad);
 	}
 	return res;
@@ -631,6 +639,7 @@ EHitResult APlayerCharacter::Hit(float damage, EAttackDirection ad)
 
 void APlayerCharacter::PlayHitMontage(EAttackDirection ad)
 {
+	ChangeMovement(EMovementState::MS_Hit);
 	UAnimMontage *CurrentAnimMontage;
 	if (HitMontages.Contains(ad) && HitGuardMontages.Contains(ad))
 	{
@@ -644,7 +653,7 @@ void APlayerCharacter::PlayHitMontage(EAttackDirection ad)
 
 	if (CurrentAnimMontage)
 	{
-		PlayAnimMontage(CurrentAnimMontage, 1.0f);
+		PlayAnimMontage(CurrentAnimMontage, 0.9f);
 	}
 	else
 	{
@@ -656,7 +665,10 @@ void APlayerCharacter::Landed(const FHitResult &Hit)
 {
 	Super::Landed(Hit);
 	bJustLanded = true;
-	ChangeMovement(EMovementState::MS_Idle);
+	if (!bIsHitting)
+	{
+		ChangeMovement(EMovementState::MS_Idle);
+	}
 }
 
 void APlayerCharacter::Jump()
@@ -702,6 +714,10 @@ void APlayerCharacter::Dodge()
 
 bool APlayerCharacter::CanMove()
 {
+	if (bIsHitting)
+	{
+		return false;
+	}
 	return (MovementState == EMovementState::MS_Moving ||
 			MovementState == EMovementState::MS_Idle ||
 			MovementState == EMovementState::MS_Guarding);
@@ -715,6 +731,8 @@ void APlayerCharacter::ResetMovement()
 	bIsDodging = false;
 	bIsAttacking = false;
 	bCanAttack = true;
+	bIsSweeping = false;
+	bIsHitting = false;
 	CurrentAttackCombo = 0;
 }
 void APlayerCharacter::ChangeMovement(EMovementState ms)
@@ -741,7 +759,7 @@ void APlayerCharacter::Guard()
 	if (!bIsGuarding && GetStamina() > 5)
 	{
 		bIsGuarding = true;
-		MoveComp->MaxWalkSpeed = WalkSpeed * 0.8;
+		MoveComp->MaxWalkSpeed = WalkSpeed * 0.7;
 		ChangeMovement(EMovementState::MS_Guarding);
 	}
 }
@@ -785,7 +803,7 @@ void APlayerCharacter::AttackTrace()
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 	TArray<FHitResult> Hits;
-	float SphereRadius = 10.0f;
+	float SphereRadius = 7.0f;
 
 	bool bHit = World->SweepMultiByObjectType(
 		Hits,
@@ -795,45 +813,36 @@ void APlayerCharacter::AttackTrace()
 		ObjectQueryParams,
 		FCollisionShape::MakeSphere(SphereRadius),
 		QueryParams);
-	if (bHit)
+	if (!bHit)
 	{
-		for (auto H : Hits)
+		return;
+	}
+
+	for (auto H : Hits)
+	{
+		APlayerCharacter *HitPlayerCharacter = nullptr;
+
+		HitPlayerCharacter = Cast<APlayerCharacter>(H.GetActor());
+		if (HitPlayerCharacter && !HitPlayerCharacter->bIsSwept)
 		{
-			APlayerCharacter *HitPlayerCharacter = nullptr;
-
-			HitPlayerCharacter = Cast<APlayerCharacter>(H.GetActor());
-			if (HitPlayerCharacter && !HitPlayerCharacter->bIsHit)
+			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
 			{
-				EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
-				switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
-				{
-				case 1:
-				case 3:
-					AttackDirection = EAttackDirection::AD_Left;
-					break;
-				case 2:
-					AttackDirection = EAttackDirection::AD_Right;
-					break;
-				case 4:
-					AttackDirection = EAttackDirection::AD_Forward;
-					break;
-				default:
-					break;
-				}
-				HitCharacters.Add(HitPlayerCharacter);
-
-				switch (HitPlayerCharacter->Hit(LightAttackDamage, AttackDirection))
-				{
-				case EHitResult::HR_Parry:
-					Stun();
-					break;
-				case EHitResult::HR_Guard:
-					DoBlockHitReaction();
-					break;
-				}
+			case 1:
+			case 3:
+			case 4:
+				AttackDirection = EAttackDirection::AD_Left;
+				break;
+			case 2:
+				AttackDirection = EAttackDirection::AD_Right;
+				break;
+				AttackDirection = EAttackDirection::AD_Forward;
+				break;
+			default:
 				break;
 			}
-			/*
+			HitCharacters.Add(HitPlayerCharacter);
+
 			// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
 			FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
 			ToAttacker.Z = 0.f;
@@ -853,9 +862,19 @@ void APlayerCharacter::AttackTrace()
 				HitPlayerCharacter->SetActorRotation(LookAtRot);
 				// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
 			}
-			*/
+			switch (HitPlayerCharacter->Hit(LightAttackDamage, 1040, AttackDirection))
+			{
+			case EHitResult::HR_Parry:
+				ReactStunned();
+				break;
+			case EHitResult::HR_Guard:
+				ReactBlocked();
+				break;
+			}
+			break;
 		}
 	}
+
 	// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
 	// DrawDebugSphere(World, Start, SphereRadius, 12, FColor::Blue, false, 1.0f);
 	// DrawDebugSphere(World, End, SphereRadius, 12, FColor::Blue, false, 1.0f);
@@ -865,7 +884,7 @@ void APlayerCharacter::ResetHitCharacters()
 {
 	for (auto ch : HitCharacters)
 	{
-		ch->bIsHit = false;
+		ch->bIsSwept = false;
 	}
 	HitCharacters.Empty();
 }

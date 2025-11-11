@@ -167,12 +167,13 @@ protected:
 
 	/* 전투 (공격)*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-	bool bIsAttacking = false; // 공격 중인지
-	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨다운 확인용)
-	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
-	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
-	bool bIsHit = false;	   // 플레이어가 공격을 맞췄는지
-
+	bool bIsAttacking = false;	  // 공격 중인지
+	bool bCanAttack = true;		  // 공격 할 수 있는지(동작 쿨다운 확인용)
+	bool bCanCombo = false;		  // 콤보를 연속할 수 있는지
+	bool bWantCombo = false;	  // 플레이어가 콤보 연속을 원하는지
+	bool bIsHitting = false;	  // 피격 중인지
+	bool bIsSweeping = false;	  // 스윕을 하는 중인지
+	bool bIsSwept = false;		  // 스윕을 받는 중인지
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -208,9 +209,9 @@ protected:
 	/* 전투 (피격)*/
 	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
 
-	void PlayHitMontage(EAttackDirection ad);		   // 피격 몽타주 재생
-	void ResetHitCharacters();						   // 피격 캐릭터 배열 초기화
-	EHitResult Hit(float damage, EAttackDirection ad); // 피격
+	void PlayHitMontage(EAttackDirection ad);					   // 피격 몽타주 재생
+	void ResetHitCharacters();									   // 피격 캐릭터 배열 초기화
+	EHitResult Hit(float damage, float dist, EAttackDirection ad); // 피격
 
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
@@ -218,7 +219,7 @@ protected:
 	void ResetMovement();
 
 	/* 조작 (걷기)*/
-	float WalkSpeed = 500;
+	float WalkSpeed = 400;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
 	float SideMovementMultiplier = 0.6f; // 좌/우 성분 계수
@@ -252,10 +253,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bIsParrying = false;
 
-	void DoBlockHitReaction();
+	void ReactBlocked();
 	void Parry(); // 공격을 튕겨내는 패리를 한다
 	void Guard();
-	void Stun();
+	void ReactStunned();
 
 	void StopGuarding();
 	/* 더미 기능 */
