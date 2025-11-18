@@ -125,7 +125,7 @@ void APlayerCharacter::Move(const FInputActionValue &Value)
 		return;
 	}
 	bIsAttacking = false; // 공격 상태 해제
-
+	bCanCounterAttack = false;
 	FVector2D Input = Value.Get<FVector2D>(); // X=Right, Y=Forward
 	if (Input.X == 0.f && Input.Y == 0.f)
 		return; // 입력 없음
@@ -380,6 +380,11 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		ChangeMovement(EMovementState::MS_Falling);
 	}
+	else if (MovementState == EMovementState::MS_Falling)
+	{
+		ChangeMovement(EMovementState::MS_Idle);
+	}
+
 	if (bIsSweeping)
 	{
 		AttackTrace();
@@ -428,7 +433,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(RunAction, ETriggerEvent::Started, this, &APlayerCharacter::Run);
 		EnhancedInput->BindAction(RunAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopRunning);
 
-		EnhancedInput->BindAction(DodgeAction, ETriggerEvent::Started, this, &APlayerCharacter::Dodge);
+		EnhancedInput->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Dodge);
 
 		EnhancedInput->BindAction(GuardAction, ETriggerEvent::Started, this, &APlayerCharacter::Guard);
 		EnhancedInput->BindAction(GuardAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopGuarding);
@@ -449,31 +454,58 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	}
 	if (NotifyName == TEXT("EndDodge"))
 	{
-		ChangeMovement(EMovementState::MS_Idle);
+
 		bCanAttack = true;
+		bCanBeHit = true;
 		bIsDodging = false;
+		bIsCounterTiming = false;
+		if (bCanCounterAttack && ReadyCounterMontage)
+		{
+			PlayAnimMontage(ReadyCounterMontage, 0.6f);
+		}
+		else
+		{
+			ChangeMovement(EMovementState::MS_Idle);
+		}
+	}
+	if (NotifyName == TEXT("EndReadyCounter"))
+	{
+		if (ReleaseCounterMontage)
+		{
+			PlayAnimMontage(ReleaseCounterMontage, 1.0f);
+		}
+	}
+	if (NotifyName == TEXT("ResetMovement"))
+	{
+		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndHit"))
 	{
-		bCanAttack = true;
 		ResetMovement();
 	}
 	if (NotifyName == TEXT("EndBlockHit"))
 	{
 		ResetMovement();
 	}
-	if (NotifyName == TEXT("EndParry"))
+	if (NotifyName == TEXT("Parry"))
 	{
-		bIsParrying = false;
-		ResetMovement();
+		bIsParrying = true;
 	}
 	if (NotifyName == TEXT("EndStun"))
+	{
+		ResetMovement();
+	}
+	if (NotifyName == TEXT("EndAttack"))
 	{
 		ResetMovement();
 	}
 	if (NotifyName == TEXT("Sweep"))
 	{
 		bIsSweeping = true;
+	}
+	if (NotifyName == TEXT("BeforeAttack"))
+	{
+		AttackBeforeTrace();
 	}
 }
 
@@ -489,11 +521,6 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 		if ((bWantCombo || bAutoAttack) && bCanAttack)
 		{
 			bWantCombo = false;
-			CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
-			if (!CurrentAttackCombo) // 현재 공격 콤보 0 방지
-			{
-				CurrentAttackCombo++;
-			}
 			LightAttack();
 		}
 		else if (bIsAttacking)
@@ -507,12 +534,20 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	{
 		bIsSweeping = false;
 	}
+	if (NotifyName == TEXT("Parry"))
+	{
+		bIsParrying = false;
+	}
 }
 void APlayerCharacter::Attack()
 {
 	if (bIsGuarding)
 	{
 		Parry();
+	}
+	else if (bCanCounterAttack)
+	{
+		CounterAttack();
 	}
 	else // 일반 공격
 	{
@@ -531,6 +566,7 @@ void APlayerCharacter::Attack()
 		}
 	}
 }
+
 void APlayerCharacter::LightAttack()
 {
 	if (!bCanAttack)
@@ -544,13 +580,16 @@ void APlayerCharacter::LightAttack()
 		ChangeMovement(EMovementState::MS_Idle);
 		return;
 	}
+
 	AddStamina(-StaminaLightAttackCost);
 
 	bIsAttacking = true;
 	bCanCombo = false;
-	if (CurrentAttackCombo == 0)
+
+	CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
+	if (!CurrentAttackCombo) // 현재 공격 콤보 0 방지
 	{
-		CurrentAttackCombo = 1;
+		CurrentAttackCombo++;
 	}
 
 	ResetHitCharacters(); // 피격 캐릭터들, 리액션 가능하도록 초기화
@@ -558,7 +597,7 @@ void APlayerCharacter::LightAttack()
 
 	if (bIsRunning && GetVelocity().Size() >= (RunSpeed * 0.85f)) // 플레이어 캐릭터 현재 속도가 달리기 속도의 85% 이상일 때, 대쉬 공격 재생
 	{
-		CurrentAnimMontage = RunAttackMontage;
+		CurrentAnimMontage = DashAttackMontage;
 		CurrentAttackCombo = 1;
 	}
 	else if (CurrentAttackCombo - 1 >= 0 && CurrentAttackCombo - 1 < AttackMontages.Num())
@@ -574,23 +613,196 @@ void APlayerCharacter::LightAttack()
 	}
 }
 
+void APlayerCharacter::AttackBeforeTrace()
+{
+	UWorld *World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AttackBeforeTrace] GetWorld() returned null"));
+		return;
+	}
+
+	// 기본 위치: 액터 위치 기준
+	FVector Start = GetActorLocation();
+
+	// 전방 방향(액터의 정면)
+	FVector Forward = GetActorForwardVector();
+
+	// 설정 가능한 파라미터 (필요시 조정)
+	const float FrontOffset = 50.0f; // 액터 앞쪽으로 박스 시작 지점까지의 거리
+	const float SweepRange = 150.0f; // 박스가 스윕할 총 거리
+	// half extents: (forwardHalf, lateralHalf, verticalHalf)
+	// forwardHalf은 박스의 전후 반길이 (스윕 이동과 조합되어 검출 범위 결정)
+	const FVector HalfExtents = FVector(30.0f, 60.0f, 80.0f);
+
+	// 시작 / 끝 위치 계산
+	FVector BoxStart = Start + Forward * FrontOffset;
+	FVector BoxEnd = BoxStart + Forward * SweepRange;
+
+	// 쿼리 파라미터: 자기 자신 무시
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	QueryParams.bTraceComplex = true;
+
+	// Pawn 오브젝트 타입만 검사
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+	FQuat BoxQuat = GetActorQuat();
+
+	FHitResult Hit;
+	bool bHit = World->SweepSingleByObjectType(
+		Hit,
+		BoxStart,
+		BoxEnd,
+		BoxQuat,
+		ObjectQueryParams,
+		FCollisionShape::MakeBox(HalfExtents),
+		QueryParams);
+
+	if (bHit && Hit.GetActor())
+	{
+		APlayerCharacter *HitPlayerCharacter = Cast<APlayerCharacter>(Hit.GetActor());
+		if (HitPlayerCharacter)
+		{
+			HitPlayerCharacter->bIsCounterTiming = true;
+			UE_LOG(LogTemp, Log, TEXT("[AttackBeforeTrace] Hit %s -> bIsCounterTiming = true"), *HitPlayerCharacter->GetName());
+		}
+	}
+	const float DebugDuration = 0.5f; // 화면에 남아있는 시간(초)
+	// 스윕 전체 박스의 중심: 시작과 끝의 중간
+	FVector SweepCenter = BoxStart + (BoxEnd - BoxStart) * 0.5f;
+	// 전방(Forward) 방향으로 절반 스윕 길이를 반치수에 더해 전체 길이를 포함
+	FVector SweepHalfExtents = FVector(HalfExtents.X + (SweepRange * 0.5f), HalfExtents.Y, HalfExtents.Z);
+
+	// 박스 회전은 기존과 동일하게 사용 (액터 회전 기준)
+	FQuat DebugQuat = BoxQuat; // 또는 FQuat::Identity로 월드 정렬
+
+	// DrawDebugBox(World, SweepCenter, SweepHalfExtents, DebugQuat, FColor::Purple, false, DebugDuration, 0, 2.0f);
+}
+void APlayerCharacter::AttackTrace()
+{
+	if (!SwordMeshComponent) // SwordMeshComponent가 valid한지 확인
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] SwordMeshComponent is null"));
+		bIsAttacking = false;
+		return;
+	}
+	UWorld *World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] GetWorld() returned null"));
+		bIsAttacking = false;
+		return;
+	}
+
+	FVector Start = SwordMeshComponent->GetComponentLocation();
+	FVector Forward = SwordMeshComponent->GetUpVector();
+	FVector End = Start + Forward * LightAttackRange;
+
+	// 쿼리 파라미터 (자기 자신 무시)
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	QueryParams.bTraceComplex = true;
+
+	// Pawn 오브젝트 타입만 검사하도록 설정
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+
+	TArray<FHitResult> Hits;
+	bool bHit = World->LineTraceMultiByObjectType(
+		Hits,
+		Start,
+		End,
+		ObjectQueryParams,
+		QueryParams);
+
+	DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
+	if (!bHit)
+	{
+		return;
+	}
+
+	for (auto H : Hits)
+	{
+		APlayerCharacter *HitPlayerCharacter = nullptr;
+
+		HitPlayerCharacter = Cast<APlayerCharacter>(H.GetActor());
+		if (HitPlayerCharacter && HitPlayerCharacter->bCanBeHit)
+		{
+			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
+			{
+			case 1:
+			case 3:
+			case 4:
+				AttackDirection = EAttackDirection::AD_Left;
+				break;
+			case 2:
+				AttackDirection = EAttackDirection::AD_Right;
+				break;
+				AttackDirection = EAttackDirection::AD_Forward;
+				break;
+			default:
+				break;
+			}
+			HitCharacters.Add(HitPlayerCharacter);
+
+			if (!HitPlayerCharacter->bIsFocusing)
+			{ // 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
+				FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
+				ToAttacker.Z = 0.f;
+
+				if (!ToAttacker.IsNearlyZero()) // 맞은 캐릭터 시점 고정하기
+				{
+					FRotator LookAtRot = ToAttacker.Rotation();
+					LookAtRot.Pitch = 0.f;
+					LookAtRot.Roll = 0.f;
+
+					if (AController *HitCtrl = HitPlayerCharacter->GetController())
+					{
+						HitCtrl->SetControlRotation(LookAtRot);
+					}
+
+					// 액터 자체 회전도 설정
+					HitPlayerCharacter->SetActorRotation(LookAtRot);
+					// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
+				}
+			}
+			switch (HitPlayerCharacter->Hit(LightAttackDamage, 1040, AttackDirection))
+			{
+			case EHitResult::HR_Parry:
+				ReactStunned();
+				break;
+			case EHitResult::HR_Guard:
+				ReactBlocked();
+				break;
+			}
+			break;
+		}
+	}
+
+	// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
+}
 void APlayerCharacter::Parry()
 {
+	if (GetStamina() >= 20.0)
+	{
+		AddStamina(-20.0f);
+	}
+	else
+	{
+		return;
+	}
 	if (ParryMontage)
 	{
-		bIsParrying = true;
 		bIsGuarding = false;
 		PlayAnimMontage(ParryMontage, 1.0f);
-		if (GetStamina() >= 20.0)
-		{
-			AddStamina(-20.0f);
-		}
 	}
 }
 void APlayerCharacter::ReactBlocked()
 {
 	CurrentAttackCombo = 0;
-	PlayAnimMontage(BlockAttackMontage, 1.0f);
+	PlayAnimMontage(BlockedMontage, 1.0f);
 	AddStamina(-10.0f);
 	bCanAttack = false;
 	bIsAttacking = false;
@@ -610,9 +822,11 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 {
 	int32 index = 0;
 	bIsAttacking = false; // 피격 중 공격 판정 방지
+	bCanCounterAttack = false;
 	bCanAttack = false;
 	EHitResult res;
-	bIsSwept = true;
+	bCanBeHit = false;
+	bIsCounterTiming = false; // 닷지 저스트 실패
 	if (bIsParrying)
 	{
 		res = EHitResult::HR_Parry;
@@ -706,21 +920,43 @@ void APlayerCharacter::Dodge()
 	if (!bIsFocusing || bIsDodging || !CanMove() || GetStamina() < StaminaDodgeCost)
 		return;
 	bWantCombo = false;
+	bCanBeHit = false;
 	AddStamina(-StaminaDodgeCost);
 	ChangeMovement(EMovementState::MS_Dodging);
 	bIsDodging = true;
-	PlayAnimMontage(DodgeMontage, 1.2f);
+	if (bIsCounterTiming)
+	{
+		bCanCounterAttack = true;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Display, TEXT("Dodge Just Didn't Acticated."));
+	}
+	PlayAnimMontage(DodgeMontage, 2.0f);
+}
+void APlayerCharacter::CounterAttack()
+{
+	if (!CounterMontage)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CounterMontage Is Not Found!"));
+		return;
+	}
+	bIsAttacking = true;
+	bCanCounterAttack = false;
+	bCanBeHit = false;
+	ChangeMovement(EMovementState::MS_Attacking);
+	PlayAnimMontage(CounterMontage, 1.0f);
 }
 
 bool APlayerCharacter::CanMove()
 {
-	if (bIsHitting)
+	if (bIsHitting /*|| bJustLanded*/)
 	{
 		return false;
 	}
+
 	return (MovementState == EMovementState::MS_Moving ||
-			MovementState == EMovementState::MS_Idle ||
-			MovementState == EMovementState::MS_Guarding);
+			MovementState == EMovementState::MS_Idle);
 }
 
 void APlayerCharacter::ResetMovement()
@@ -731,6 +967,8 @@ void APlayerCharacter::ResetMovement()
 	bIsDodging = false;
 	bIsAttacking = false;
 	bCanAttack = true;
+	bCanBeHit = true;
+	bCanCounterAttack = false;
 	bIsSweeping = false;
 	bIsHitting = false;
 	CurrentAttackCombo = 0;
@@ -760,7 +998,6 @@ void APlayerCharacter::Guard()
 	{
 		bIsGuarding = true;
 		MoveComp->MaxWalkSpeed = WalkSpeed * 0.7;
-		ChangeMovement(EMovementState::MS_Guarding);
 	}
 }
 
@@ -768,123 +1005,16 @@ void APlayerCharacter::StopGuarding()
 {
 	if (bIsGuarding)
 	{
-		UE_LOG(LogTemp, Log, TEXT("StopGuarding"));
 		bIsGuarding = false;
 		MoveComp->MaxWalkSpeed = WalkSpeed;
-		ChangeMovement(EMovementState::MS_Idle);
 	}
-}
-void APlayerCharacter::AttackTrace()
-{
-	if (!SwordMeshComponent) // SwordMeshComponent가 valid한지 확인
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] SwordMeshComponent is null"));
-		bIsAttacking = false;
-		return;
-	}
-	UWorld *World = GetWorld();
-	if (!World)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] GetWorld() returned null"));
-		bIsAttacking = false;
-		return;
-	}
-
-	FVector Start = SwordMeshComponent->GetComponentLocation();
-	FVector Forward = SwordMeshComponent->GetUpVector();
-	FVector End = Start + Forward * LightAttackRange;
-
-	// 쿼리 파라미터 (자기 자신 무시)
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(this);
-	QueryParams.bTraceComplex = true;
-
-	// Pawn 오브젝트 타입만 검사하도록 설정
-	FCollisionObjectQueryParams ObjectQueryParams;
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
-	TArray<FHitResult> Hits;
-	float SphereRadius = 7.0f;
-
-	bool bHit = World->SweepMultiByObjectType(
-		Hits,
-		Start,
-		End,
-		FQuat::Identity,
-		ObjectQueryParams,
-		FCollisionShape::MakeSphere(SphereRadius),
-		QueryParams);
-	if (!bHit)
-	{
-		return;
-	}
-
-	for (auto H : Hits)
-	{
-		APlayerCharacter *HitPlayerCharacter = nullptr;
-
-		HitPlayerCharacter = Cast<APlayerCharacter>(H.GetActor());
-		if (HitPlayerCharacter && !HitPlayerCharacter->bIsSwept)
-		{
-			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
-			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
-			{
-			case 1:
-			case 3:
-			case 4:
-				AttackDirection = EAttackDirection::AD_Left;
-				break;
-			case 2:
-				AttackDirection = EAttackDirection::AD_Right;
-				break;
-				AttackDirection = EAttackDirection::AD_Forward;
-				break;
-			default:
-				break;
-			}
-			HitCharacters.Add(HitPlayerCharacter);
-
-			// 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
-			FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
-			ToAttacker.Z = 0.f;
-
-			if (!ToAttacker.IsNearlyZero()) // 맞은 캐릭터 시점 고정하기
-			{
-				FRotator LookAtRot = ToAttacker.Rotation();
-				LookAtRot.Pitch = 0.f;
-				LookAtRot.Roll = 0.f;
-
-				if (AController *HitCtrl = HitPlayerCharacter->GetController())
-				{
-					HitCtrl->SetControlRotation(LookAtRot);
-				}
-
-				// 액터 자체 회전도 설정
-				HitPlayerCharacter->SetActorRotation(LookAtRot);
-				// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
-			}
-			switch (HitPlayerCharacter->Hit(LightAttackDamage, 1040, AttackDirection))
-			{
-			case EHitResult::HR_Parry:
-				ReactStunned();
-				break;
-			case EHitResult::HR_Guard:
-				ReactBlocked();
-				break;
-			}
-			break;
-		}
-	}
-
-	// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
-	// DrawDebugSphere(World, Start, SphereRadius, 12, FColor::Blue, false, 1.0f);
-	// DrawDebugSphere(World, End, SphereRadius, 12, FColor::Blue, false, 1.0f);
 }
 
 void APlayerCharacter::ResetHitCharacters()
 {
 	for (auto ch : HitCharacters)
 	{
-		ch->bIsSwept = false;
+		ch->bCanBeHit = true;
 	}
 	HitCharacters.Empty();
 }

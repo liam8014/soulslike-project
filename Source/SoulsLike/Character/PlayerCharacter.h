@@ -26,7 +26,6 @@ enum class EMovementState : uint8
 	MS_Dodging UMETA(DisplayName = "Dodging"),	   // 회피 상태
 	MS_Jumping UMETA(DisplayName = "Jumping"),	   // 점프 초기 상태
 	MS_Falling UMETA(DisplayName = "Falling"),	   // 낙하 상태
-	MS_Guarding UMETA(DisplayName = "Guarding"),   // 가드 상태
 	MS_Dead UMETA(DisplayName = "Dead"),		   // 사망 상태
 };
 
@@ -100,7 +99,7 @@ protected:
 	const float StaminaLightAttackCost = 6.0f; // 스테미나 기본 공격 소모량
 	const float StaminaRunStartCost = 2.5f;	   // 달리기 시작 소모량
 	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
-	const float StaminaDodgeCost = 15.0f;	   // 회피 소모량
+	const float StaminaDodgeCost = 23.0f;	   // 회피 소모량
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -139,6 +138,7 @@ protected:
 	void Run();												// 캐릭터의 이동속도 상한을 증가시킨다
 	void StopRunning();										// 캐릭터의 이동속도 상한을 기본 속도로 설정한다
 	void Dodge();											// 캐릭터가 회피한다
+	void CounterAttack();
 
 	/* 카메라 및 포커싱 */
 	void ToogleFocus();						 //  SwitchFocus의 실제 구현부
@@ -167,13 +167,18 @@ protected:
 
 	/* 전투 (공격)*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-	bool bIsAttacking = false;	  // 공격 중인지
-	bool bCanAttack = true;		  // 공격 할 수 있는지(동작 쿨다운 확인용)
-	bool bCanCombo = false;		  // 콤보를 연속할 수 있는지
-	bool bWantCombo = false;	  // 플레이어가 콤보 연속을 원하는지
-	bool bIsHitting = false;	  // 피격 중인지
-	bool bIsSweeping = false;	  // 스윕을 하는 중인지
-	bool bIsSwept = false;		  // 스윕을 받는 중인지
+	bool bIsAttacking = false; // 공격 중인지
+	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨다운 확인용)
+	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
+	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
+	bool bIsHitting = false;   // 피격 중인지
+	bool bCanBeHit = true;	   // 피격 가능한지
+	bool bIsSweeping = false;  // 스윕을 하는 중인지
+	bool bIsSwept = false;	   // 스윕을 받는 중인지
+
+	bool bIsCounterTiming = false; // 공격을 받기 직전인지(회피 타이밍)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+	bool bCanCounterAttack = false;
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -193,10 +198,10 @@ protected:
 	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *RunAttackMontage; // 대쉬공격 몽타주 레퍼런스
+	UAnimMontage *DashAttackMontage; // 대쉬공격 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *BlockAttackMontage; // 공격 막힘 몽타주 레퍼런스
+	UAnimMontage *BlockedMontage; // 공격 막힘 몽타주 레퍼런스
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *ParryMontage; // 패링 몽타주
@@ -204,7 +209,17 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *StunMontage; // 스턴 몽타주
 
-	void AttackTrace(); // 공격 트레이스
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *ReadyCounterMontage; // 카운터 준비 몽타주
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *ReleaseCounterMontage; // 카운터 준비 해제 몽타주
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *CounterMontage; // 카운터 공격 몽타주
+
+	void AttackTrace();		  // 공격 트레이스
+	void AttackBeforeTrace(); // 공격 이전 트레이스(회피 타이밍)
 
 	/* 전투 (피격)*/
 	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
