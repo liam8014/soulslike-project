@@ -184,7 +184,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float LightAttackRange = 120.0f; // 기본 공격 범위
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	float LightAttackDamage = 10.0f;
+	float LightAttackPower = 10.0f;
 
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
@@ -280,8 +280,7 @@ protected:
 
 public:
 	// Called every frame
-	virtual void
-	Tick(float DeltaTime) override;
+	virtual void Tick(float DeltaTime) override;
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
 };

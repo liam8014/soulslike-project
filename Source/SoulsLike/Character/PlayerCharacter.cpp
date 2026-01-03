@@ -26,9 +26,8 @@
 
 #include "TimerManager.h"
 
-#include "Kismet/GameplayStatics.h" // UGameplayStatics::SetGlobalTimeDilation
-#include "Engine/World.h"			// UWorld
-#include "Containers/Ticker.h"		// FTSTicker, FTickerDelegate
+#include "Engine/World.h"	   // UWorld
+#include "Containers/Ticker.h" // FTSTicker, FTickerDelegate
 #include "../UI/StatusBar.h"
 
 // Sets default values
@@ -289,7 +288,7 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 	FVector2D ScreenPos;
 	if (UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(PlayerController, TargetLoc, ScreenPos, false))
 	{
-		FocusIndicatorWidget->SetPositionInViewport(ScreenPos + FVector2D(0.0f, -15.0f), false);
+		FocusIndicatorWidget->SetPositionInViewport(ScreenPos + FVector2D(0.0f, -30.0f), false);
 	}
 
 	// 카메라(또는 스프링암) 월드 위치
@@ -768,7 +767,7 @@ void APlayerCharacter::AttackTrace()
 					// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
 				}
 			}
-			switch (HitPlayerCharacter->Hit(LightAttackDamage, 1040, AttackDirection))
+			switch (HitPlayerCharacter->Hit(LightAttackPower, 1040, AttackDirection))
 			{
 			case EHitResult::HR_Parry:
 				ReactStunned();
