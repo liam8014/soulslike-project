@@ -453,7 +453,6 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	}
 	if (NotifyName == TEXT("EndDodge"))
 	{
-
 		bCanAttack = true;
 		bCanBeHit = true;
 		bIsDodging = false;

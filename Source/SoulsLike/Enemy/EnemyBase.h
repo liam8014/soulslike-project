@@ -27,9 +27,14 @@ protected:
 	bool bIsDead = false;
 	bool bIsStunned = false;
 
-	bool bIsHitting = false; // 피격 중인지
-	bool bCanBeHit = true;	 // 피격 가능한지
-	bool bIsSwept = false;	 // 스윕을 받는 중인지
+	bool bCanMove = false;
+	bool bIsAttacking = false; // 공격 중인지
+	bool bIsHitting = false;   // 피격 중인지
+	bool bCanBeHit = true;	   // 피격 가능한지
+	bool bIsSwept = false;	   // 스윕을 받는 중인지
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
+	TArray<UAnimMontage *> AttackMontages;
 
 public:
 	// Called every frame
@@ -38,6 +43,7 @@ public:
 	virtual float AddHealth(float Amount);
 	virtual void Die();
 	virtual void Stun();
+	virtual bool Attack(int32 AttackIndex);
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;

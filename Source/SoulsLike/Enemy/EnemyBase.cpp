@@ -42,3 +42,17 @@ void AEnemyBase::Die()
 void AEnemyBase::Stun()
 {
 }
+
+bool AEnemyBase::Attack(int32 AttackIndex)
+{
+	if (!AttackMontages.IsValidIndex(AttackIndex) || AttackMontages[AttackIndex] == nullptr)
+	{
+		return false;
+	}
+	UAnimInstance *AnimInstance = GetMesh()->GetAnimInstance();
+	if (!AnimInstance || AnimInstance->Montage_IsPlaying(AttackMontages[AttackIndex]))
+	{
+		return false;
+	}
+	return true;
+}
