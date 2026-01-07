@@ -607,7 +607,7 @@ void APlayerCharacter::LightAttack()
 	{
 		bIsAttacking = true;
 		ChangeMovement(EMovementState::MS_Attacking);
-		PlayAnimMontage(CurrentAnimMontage, 0.9f);
+		PlayAnimMontage(CurrentAnimMontage, 1.3f);
 	}
 }
 
@@ -714,7 +714,7 @@ void APlayerCharacter::AttackTrace()
 		ObjectQueryParams,
 		QueryParams);
 
-	DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
+	// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
 	if (!bHit)
 	{
 		return;

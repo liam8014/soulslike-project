@@ -43,9 +43,8 @@ bool ABossEnemy1::Attack(int32 AttackIndex)
 
 void ABossEnemy1::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
 {
-    if (NotifyName == TEXT("Next"))
+    if (NotifyName == TEXT("Swing2"))
     {
-        UE_LOG(LogTemp, Display, TEXT("Next!"));
         PlayAnimMontage(AttackMontages[1]);
     }
 }
