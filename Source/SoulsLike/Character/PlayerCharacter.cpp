@@ -28,7 +28,7 @@
 
 #include "Engine/World.h"	   // UWorld
 #include "Containers/Ticker.h" // FTSTicker, FTickerDelegate
-#include "../UI/StatusBar.h"
+#include "SoulsLike/UI/StatusBar.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -459,19 +459,17 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 		bIsCounterTiming = false;
 		if (bCanCounterAttack && ReadyCounterMontage)
 		{
-			PlayAnimMontage(ReadyCounterMontage, 0.6f);
+			bCanAttack = false;
+			PlayAnimMontage(ReadyCounterMontage, 1.0f);
 		}
 		else
 		{
 			ChangeMovement(EMovementState::MS_Idle);
 		}
 	}
-	if (NotifyName == TEXT("EndReadyCounter"))
+	if (NotifyName == TEXT("ReadyCounter"))
 	{
-		if (ReleaseCounterMontage)
-		{
-			PlayAnimMontage(ReleaseCounterMontage, 1.0f);
-		}
+		bCanAttack = true;
 	}
 	if (NotifyName == TEXT("ResetMovement"))
 	{
@@ -536,6 +534,13 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	{
 		bIsParrying = false;
 	}
+	if (NotifyName == TEXT("ReadyCounter"))
+	{
+		if (ReleaseCounterMontage && !bIsAttacking)
+		{
+			PlayAnimMontage(ReleaseCounterMontage, 1.0f);
+		}
+	}
 }
 void APlayerCharacter::Attack()
 {
@@ -543,7 +548,7 @@ void APlayerCharacter::Attack()
 	{
 		Parry();
 	}
-	else if (bCanCounterAttack)
+	else if (bCanCounterAttack && bCanAttack)
 	{
 		CounterAttack();
 	}
@@ -587,7 +592,7 @@ void APlayerCharacter::LightAttack()
 	CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
 	if (!CurrentAttackCombo) // 현재 공격 콤보 0 방지
 	{
-		CurrentAttackCombo++;
+		CurrentAttackCombo = 2;
 	}
 
 	ResetHitCharacters(); // 피격 캐릭터들, 리액션 가능하도록 초기화
@@ -607,7 +612,7 @@ void APlayerCharacter::LightAttack()
 	{
 		bIsAttacking = true;
 		ChangeMovement(EMovementState::MS_Attacking);
-		PlayAnimMontage(CurrentAnimMontage, 1.3f);
+		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 	}
 }
 
@@ -693,9 +698,15 @@ void APlayerCharacter::AttackTrace()
 		return;
 	}
 
+	// [추가] 공격 범위 반지름 (필요에 따라 헤더로 빼거나 수치 조절)
+	float AttackRadius = 20.0f;
+
 	FVector Start = SwordMeshComponent->GetComponentLocation();
 	FVector Forward = SwordMeshComponent->GetUpVector();
 	FVector End = Start + Forward * LightAttackRange;
+
+	// [변경] 충돌 도형 생성 (구체)
+	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackRadius);
 
 	// 쿼리 파라미터 (자기 자신 무시)
 	FCollisionQueryParams QueryParams;
@@ -707,14 +718,20 @@ void APlayerCharacter::AttackTrace()
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
 	TArray<FHitResult> Hits;
-	bool bHit = World->LineTraceMultiByObjectType(
+
+	// [변경] LineTrace -> SweepMultiByObjectType
+	bool bHit = World->SweepMultiByObjectType(
 		Hits,
 		Start,
 		End,
+		FQuat::Identity, // 구체는 회전해도 모양이 같으므로 Identity
 		ObjectQueryParams,
+		Shape,
 		QueryParams);
 
-	// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
+	if (bDrawDebugShape)
+		DrawDebugCapsule(World, (Start + End) * 0.5f, LightAttackRange * 0.5f, AttackRadius, FRotationMatrix::MakeFromZ(Forward).ToQuat(), bHit ? FColor::Red : FColor::Green, false, 1.0f);
+
 	if (!bHit)
 	{
 		return;
@@ -722,12 +739,20 @@ void APlayerCharacter::AttackTrace()
 
 	for (auto H : Hits)
 	{
+		AActor *HitActor = H.GetActor();
+
+		if (ProcessedActors.Contains(HitActor))
+		{
+			continue;
+		}
+
 		APlayerCharacter *HitPlayerCharacter = nullptr;
 
 		HitPlayerCharacter = Cast<APlayerCharacter>(H.GetActor());
 		if (HitPlayerCharacter && HitPlayerCharacter->bCanBeHit)
 		{
 			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+			ProcessedActors.Add(HitActor);
 			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
 			{
 			case 1:
@@ -738,6 +763,7 @@ void APlayerCharacter::AttackTrace()
 			case 2:
 				AttackDirection = EAttackDirection::AD_Right;
 				break;
+				// 기존 코드에 있던 unreachable code 부분은 로직 유지를 위해 그대로 둡니다.
 				AttackDirection = EAttackDirection::AD_Forward;
 				break;
 			default:
@@ -778,8 +804,6 @@ void APlayerCharacter::AttackTrace()
 			break;
 		}
 	}
-
-	// DrawDebugLine(World, Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.0f);
 }
 void APlayerCharacter::Parry()
 {
@@ -823,11 +847,12 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 	bCanCounterAttack = false;
 	bCanAttack = false;
 	EHitResult res;
-	bCanBeHit = false;
+	// bCanBeHit = false;
 	bIsCounterTiming = false; // 닷지 저스트 실패
 	if (bIsParrying)
 	{
 		res = EHitResult::HR_Parry;
+		LaunchCharacter(-GetActorForwardVector() * dist * 0.5, true, true);
 	}
 	else
 	{
@@ -835,7 +860,7 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 		if (bIsGuarding)
 		{
 			AddHealth(-damage * 0.3);
-			AddStamina(-StaminaLightAttackCost);
+			AddStamina(-damage * 1.5);
 			res = EHitResult::HR_Guard;
 		}
 		else
@@ -844,7 +869,14 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 			res = EHitResult::HR_CleanHit;
 		}
 		LaunchCharacter(-GetActorForwardVector() * dist, true, true);
-		PlayHitMontage(ad);
+		if (GetStamina() > 0)
+		{
+			PlayHitMontage(ad);
+		}
+		else
+		{
+			ReactStunned();
+		}
 	}
 	return res;
 }
@@ -944,6 +976,7 @@ void APlayerCharacter::CounterAttack()
 	bCanBeHit = false;
 	ChangeMovement(EMovementState::MS_Attacking);
 	PlayAnimMontage(CounterMontage, 1.0f);
+	LaunchCharacter(GetActorForwardVector() * 6000, true, true);
 }
 
 bool APlayerCharacter::CanMove()
@@ -1015,6 +1048,7 @@ void APlayerCharacter::ResetHitCharacters()
 		ch->bCanBeHit = true;
 	}
 	HitCharacters.Empty();
+	ProcessedActors.Empty();
 }
 
 void APlayerCharacter::AddHealth(float Amount)

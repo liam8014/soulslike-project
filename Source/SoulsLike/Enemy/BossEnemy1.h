@@ -9,6 +9,7 @@
 /**
  *
  */
+
 UCLASS()
 class SOULSLIKE_API ABossEnemy1 : public AEnemyBase
 {
@@ -17,12 +18,10 @@ public:
 	ABossEnemy1();
 
 protected:
-	virtual bool Attack(int32 AttackIndex) override;
 	virtual void BeginPlay() override;
 
-	UFUNCTION()
-	void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
+	virtual void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload) override;
+	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload) override;
 
-	UFUNCTION()
-	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
+	virtual bool PlayAttackMontage(int32 AttackType) override;
 };

@@ -1,0 +1,53 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "SoulsLike/Character/PlayerCharacter.h"
+#include "SoulsLike/SoulsLikesTypes.h"
+#include "CombatComponent.generated.h"
+class AEnemyBase;
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class SOULSLIKE_API UCombatComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	// Sets default values for this component's properties
+	UCombatComponent();
+	void EnableAttackSweep();
+	void DisableAttackSweep();
+
+	void SetAttackAttribute(float Multiplier, float KnockBack, EAttackDirection Direction);
+
+protected:
+	// Called when the game starts
+	virtual void BeginPlay() override;
+
+private:
+	AEnemyBase *Owner;
+	bool bIsSweeping = false;
+	bool bIsAttacking = false;
+
+	UPROPERTY(EditAnywhere)
+	float AttackPower = 10.0f;
+
+	UPROPERTY(EditAnywhere)
+	bool bDrawDebugShape = true;
+
+	float DamageMultiplier = 1.0f;
+	float KnockBackDistance = 600.0f;
+	float AttackRadius = 30.0f;
+	EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+
+	float AttackRange = 150.0f;
+
+	void AttackTrace();
+	TSet<AActor *> ProcessedActors;
+
+public:
+	// Called every frame
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
+	void AttackBeforeTrace();
+};

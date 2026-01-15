@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "EnemyBase.h"
+#include "CombatComponent.h"
 // Sets default values
 AEnemyBase::AEnemyBase()
 {
@@ -12,6 +13,62 @@ AEnemyBase::AEnemyBase()
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
+	CombatComp = FindComponentByClass<UCombatComponent>();
+	if (CombatComp)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Combat Component is successfully set"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Combat Component set failed!"));
+	}
+
+	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
+	{
+		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &AEnemyBase::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
+		AnimInst->OnPlayMontageNotifyEnd.AddDynamic(this, &AEnemyBase::OnNotifyEnd);	 // NotifyState 종료(NotifyEnd) 바인딩
+		UE_LOG(LogTemp, Display, TEXT("AnimInst is Set"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("No AnimInst!"));
+	}
+}
+
+void AEnemyBase::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+{
+	if (NotifyName == TEXT("Sweep"))
+	{
+		CombatComp->AttackBeforeTrace();
+		CombatComp->EnableAttackSweep();
+	}
+	if (NotifyName == TEXT("BeforeAttack"))
+	{
+	}
+}
+
+void AEnemyBase::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload)
+{
+	if (NotifyName == TEXT("Sweep"))
+	{
+		CombatComp->DisableAttackSweep();
+	}
+}
+
+bool AEnemyBase::PlayAttackMontage(int32 AttackType)
+{
+	UAnimInstance *AnimInstance = GetMesh()->GetAnimInstance();
+	if (!AnimInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayAttackMontage] Anim Instance Error!"));
+		return false;
+	}
+	if (!AttackMontages.IsValidIndex(AttackType) || AttackMontages[AttackType] == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid Attack Type!"));
+		return false;
+	}
+	return true;
 }
 
 // Called every frame
@@ -43,14 +100,13 @@ void AEnemyBase::Stun()
 {
 }
 
-bool AEnemyBase::Attack(int32 AttackIndex)
+bool AEnemyBase::Attack(int32 AttackType)
 {
-	if (!AttackMontages.IsValidIndex(AttackIndex) || AttackMontages[AttackIndex] == nullptr)
+	if (!CombatComp)
 	{
 		return false;
 	}
-	UAnimInstance *AnimInstance = GetMesh()->GetAnimInstance();
-	if (!AnimInstance || AnimInstance->Montage_IsPlaying(AttackMontages[AttackIndex]))
+	if (!PlayAttackMontage(AttackType))
 	{
 		return false;
 	}

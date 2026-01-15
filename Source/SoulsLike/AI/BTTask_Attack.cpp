@@ -3,6 +3,7 @@
 #include "BTTask_Attack.h"
 #include "AIController.h"
 #include "SoulsLike/Enemy/EnemyBase.h"
+#include "SoulsLike/Enemy/CombatComponent.h"
 
 UBTTask_Attack::UBTTask_Attack()
 {
@@ -22,7 +23,7 @@ EBTNodeResult::Type UBTTask_Attack::ExecuteTask(UBehaviorTreeComponent &OwnerCom
     {
         return EBTNodeResult::Failed;
     }
-    if (Enemy->Attack(0))
+    if (Enemy->Attack(FMath::RandRange(0, Enemy->MaxAttackType - 1)))
     {
         return EBTNodeResult::Succeeded;
     }

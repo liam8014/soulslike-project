@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "SoulsLike/SoulsLikesTypes.h"
 #include "PlayerCharacter.generated.h"
 
 class UInputMappingContext;
@@ -14,37 +15,6 @@ class UCameraComponent;
 class UCharacterMovementComponent;
 class UStatusBar;
 struct FInputActionValue;
-
-UENUM(BlueprintType)
-enum class EMovementState : uint8
-{
-	MS_Idle UMETA(DisplayName = "Idle"),		   // 대기 상태
-	MS_Moving UMETA(DisplayName = "Moving"),	   // 이동 상태
-	MS_Attacking UMETA(DisplayName = "Attacking"), // 공격 상태
-	MS_Hit UMETA(DisplayName = "Hit"),			   // 피격 상태
-	MS_Stun UMETA(DisplayName = "Stun"),		   // 스턴 상태
-	MS_Dodging UMETA(DisplayName = "Dodging"),	   // 회피 상태
-	MS_Jumping UMETA(DisplayName = "Jumping"),	   // 점프 초기 상태
-	MS_Falling UMETA(DisplayName = "Falling"),	   // 낙하 상태
-	MS_Dead UMETA(DisplayName = "Dead"),		   // 사망 상태
-};
-
-UENUM(BlueprintType)
-enum class EAttackDirection : uint8
-{
-	AD_Left UMETA(DisplayName = "Left"),		 // 좌측
-	AD_Right UMETA(DisplayName = "Right"),		 // 우측
-	AD_Forward UMETA(DisplayName = "Forward"),	 // 정면
-	AD_Backward UMETA(DisplayName = "Backward"), // 후면
-};
-
-UENUM(BlueprintType)
-enum class EHitResult : uint8
-{
-	HR_CleanHit UMETA(DisplayName = "Clean Hit"), // 정타
-	HR_Guard UMETA(DisplayName = "Guarded"),	  // 가드 됨
-	HR_Parry UMETA(DisplayName = "Parried"),	  // 패리 됨
-};
 
 template <typename TEnum>
 static FText EnumDisplayName(TEnum Value)
@@ -83,12 +53,30 @@ public:
 	UStatusBar *StatusBar;
 
 	/* 체력 및 스테미나 */
-public:
 	void AddHealth(float Amount);
 	void AddStamina(float Amount);
 	float GetHealth();
 	float GetStamina();
 
+	/* 전투 (공격)*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
+	bool bIsAttacking = false; // 공격 중인지
+	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨다운 확인용)
+	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
+	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
+	bool bIsHitting = false;   // 피격 중인지
+	bool bCanBeHit = true;	   // 피격 가능한지
+	bool bIsSweeping = false;  // 스윕을 하는 중인지
+	bool bIsSwept = false;	   // 스윕을 받는 중인지
+
+	/* 전투 (피격)*/
+	EHitResult Hit(float damage, float dist, EAttackDirection ad); // 피격
+
+	/* 카메라 및 포커싱 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
+	bool bIsFocusing = false; // 플레이어가 포커싱 중인지 여부
+
+	bool bIsCounterTiming = false; // 공격을 받기 직전인지(회피 타이밍)
 protected:
 	float MaxHealth = 100.0f;
 	float Health = MaxHealth;
@@ -145,8 +133,6 @@ protected:
 	bool SearchFocusTarget();				 // 포커싱 타겟을 탐색하여 성공 여부를 반환한다
 	void UpdateFocusCamera(float DeltaTime); // 카메라를 포커싱에 맞게 업데이트한다
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
-	bool bIsFocusing = false;		  // 플레이어가 포커싱 중인지 여부
 	TArray<APawn *> FocusTargetArray; // 포커싱 타겟을 저장하는 배열
 	int32 CurrentFocusIndex = 0;	  // 현재 포커싱 중인 Pawn의 Index
 	UPROPERTY(EditAnywhere)
@@ -165,18 +151,6 @@ protected:
 	UFUNCTION()
 	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
-	/* 전투 (공격)*/
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-	bool bIsAttacking = false; // 공격 중인지
-	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨다운 확인용)
-	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
-	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
-	bool bIsHitting = false;   // 피격 중인지
-	bool bCanBeHit = true;	   // 피격 가능한지
-	bool bIsSweeping = false;  // 스윕을 하는 중인지
-	bool bIsSwept = false;	   // 스윕을 받는 중인지
-
-	bool bIsCounterTiming = false; // 공격을 받기 직전인지(회피 타이밍)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
 	bool bCanCounterAttack = false;
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
@@ -223,10 +197,12 @@ protected:
 
 	/* 전투 (피격)*/
 	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
+	TSet<AActor *> ProcessedActors;
+	UPROPERTY(EditAnywhere)
+	bool bDrawDebugShape = true;
 
-	void PlayHitMontage(EAttackDirection ad);					   // 피격 몽타주 재생
-	void ResetHitCharacters();									   // 피격 캐릭터 배열 초기화
-	EHitResult Hit(float damage, float dist, EAttackDirection ad); // 피격
+	void PlayHitMontage(EAttackDirection ad); // 피격 몽타주 재생
+	void ResetHitCharacters();				  // 피격 캐릭터 배열 초기화
 
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
@@ -246,7 +222,7 @@ protected:
 	float AlignmentThreshold = 0.9f; // 전방 기준 임계
 
 	/* 조작 (달리기)*/
-	float RunSpeed = 800;
+	float RunSpeed = 1000;
 	bool bIsRunning = false;
 
 	/* 조작(점프) */
