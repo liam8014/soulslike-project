@@ -31,6 +31,7 @@ void UCombatComponent::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to set Owner"));
 	}
+	SetRandomAttackType();
 }
 
 void UCombatComponent::AttackTrace()
@@ -201,6 +202,21 @@ void UCombatComponent::AttackBeforeTrace()
 		{
 			DrawDebugPoint(World, Hit.Location, 10.0f, FColor::Orange, false, DebugDuration);
 		}
+	}
+}
+
+void UCombatComponent::SetRandomAttackType()
+{
+	NextAttackType = 1; // FMath::RandRange(0, AttackTypeAttributes.Num() - 1);
+	if (AttackTypeAttributes.IsValidIndex(NextAttackType))
+	{
+		NextAcceptance = AttackTypeAttributes[NextAttackType].MinimumDistance;
+		NextWaitTime = AttackTypeAttributes[NextAttackType].WaitTime;
+		NextAnimMontage = AttackTypeAttributes[NextAttackType].AttackAnim;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to set Next Attack Type!"));
 	}
 }
 

@@ -23,9 +23,10 @@ EBTNodeResult::Type UBTTask_Attack::ExecuteTask(UBehaviorTreeComponent &OwnerCom
     {
         return EBTNodeResult::Failed;
     }
-    if (Enemy->Attack(FMath::RandRange(0, Enemy->MaxAttackType - 1)))
+    if (Enemy->Attack())
     {
         return EBTNodeResult::Succeeded;
     }
+    UE_LOG(LogTemp, Error, TEXT("Attack Failed!"));
     return EBTNodeResult::Failed;
 }

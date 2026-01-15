@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
+#include "BehaviorTree/Tasks/BTTask_MoveTo.h"
 #include "BTTask_MoveToLocation.generated.h"
 
 /**
  *
  */
 UCLASS()
-class SOULSLIKE_API UBTTask_MoveToLocation : public UBTTask_BlackboardBase
+class SOULSLIKE_API UBTTask_MoveToLocation : public UBTTask_MoveTo
 {
 	GENERATED_BODY()
 
@@ -20,6 +20,6 @@ public:
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent &OwnerComp, uint8 *NodeMemory) override;
 
-	UPROPERTY(EditAnywhere, Category = "범위")
-	float AcceptanceRadious = 200.0f;
+	UPROPERTY(EditAnywhere, Category = "AI")
+	FBlackboardKeySelector DynamicAcceptanceRadiusKey;
 };

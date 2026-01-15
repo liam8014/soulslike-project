@@ -7,6 +7,7 @@
 #include "SoulsLike/Character/PlayerCharacter.h"
 #include "SoulsLike/SoulsLikesTypes.h"
 #include "CombatComponent.generated.h"
+// class UAnimMontage;
 class AEnemyBase;
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SOULSLIKE_API UCombatComponent : public UActorComponent
@@ -38,10 +39,12 @@ private:
 
 	float DamageMultiplier = 1.0f;
 	float KnockBackDistance = 600.0f;
-	float AttackRadius = 30.0f;
-	EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
 
-	float AttackRange = 150.0f;
+	EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+	UPROPERTY(EditAnywhere)
+	float AttackRadius = 100.0f;
+	UPROPERTY(EditAnywhere)
+	float AttackRange = 70.0f;
 
 	void AttackTrace();
 	TSet<AActor *> ProcessedActors;
@@ -50,4 +53,13 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 	void AttackBeforeTrace();
+	void SetRandomAttackType();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
+	TArray<FAttackTypeAttribute> AttackTypeAttributes;
+
+	int32 NextAttackType = 0;
+	float NextAcceptance = 170.0f;
+	float NextWaitTime = 5.0f;
+	UAnimMontage *NextAnimMontage = nullptr;
 };

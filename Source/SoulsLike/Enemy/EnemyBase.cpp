@@ -55,7 +55,7 @@ void AEnemyBase::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayloa
 	}
 }
 
-bool AEnemyBase::PlayAttackMontage(int32 AttackType)
+bool AEnemyBase::PlayAttackMontage()
 {
 	UAnimInstance *AnimInstance = GetMesh()->GetAnimInstance();
 	if (!AnimInstance)
@@ -63,9 +63,9 @@ bool AEnemyBase::PlayAttackMontage(int32 AttackType)
 		UE_LOG(LogTemp, Error, TEXT("[PlayAttackMontage] Anim Instance Error!"));
 		return false;
 	}
-	if (!AttackMontages.IsValidIndex(AttackType) || AttackMontages[AttackType] == nullptr)
+	if (CombatComp->NextAnimMontage == nullptr)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Invalid Attack Type!"));
+		UE_LOG(LogTemp, Error, TEXT("[PlayAttackMontage] Invalid Attack Type!"));
 		return false;
 	}
 	return true;
@@ -100,15 +100,18 @@ void AEnemyBase::Stun()
 {
 }
 
-bool AEnemyBase::Attack(int32 AttackType)
+bool AEnemyBase::Attack()
 {
 	if (!CombatComp)
 	{
+		UE_LOG(LogTemp, Error, TEXT("CombatComp Not Found"));
 		return false;
 	}
-	if (!PlayAttackMontage(AttackType))
+	if (!PlayAttackMontage())
 	{
+		UE_LOG(LogTemp, Error, TEXT("Failed To Play Attack Montage"));
 		return false;
 	}
+	CombatComp->SetRandomAttackType();
 	return true;
 }

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
+#include "SoulsLikesTypes.generated.h"
 UENUM(BlueprintType)
 enum class EMovementState : uint8
 {
@@ -34,8 +34,25 @@ enum class EHitResult : uint8
 	HR_Guard UMETA(DisplayName = "Guarded"),	  // 가드 됨
 	HR_Parry UMETA(DisplayName = "Parried"),	  // 패리 됨
 };
+
+USTRUCT(BlueprintType)
+struct FAttackTypeAttribute
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	float MinimumDistance = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	float WaitTime = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	UAnimMontage *AttackAnim = nullptr;
+};
 class SOULSLIKE_API SoulsLikesTypes
 {
+
 public:
 	SoulsLikesTypes();
 	~SoulsLikesTypes();

@@ -1,29 +1,29 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// BTTask_MoveToLocation.cpp
 
 #include "BTTask_MoveToLocation.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "AIController.h"
+
 UBTTask_MoveToLocation::UBTTask_MoveToLocation()
 {
-    NodeName = TEXT("Move To Location");
+    NodeName = TEXT("Move To (Dynamic Range)");
+
+    // 이 키에는 Float 타입만 연결할 수 있도록 필터링
+    DynamicAcceptanceRadiusKey.AddFloatFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_MoveToLocation, DynamicAcceptanceRadiusKey));
 }
+
 EBTNodeResult::Type UBTTask_MoveToLocation::ExecuteTask(UBehaviorTreeComponent &OwnerComp, uint8 *NodeMemory)
 {
-    Super::ExecuteTask(OwnerComp, NodeMemory);
-    AAIController *AIController = OwnerComp.GetAIOwner();
-    if (nullptr == AIController)
-    {
-        return EBTNodeResult::Failed;
-    }
-
     UBlackboardComponent *BlackboardComp = OwnerComp.GetBlackboardComponent();
-    if (nullptr == BlackboardComp)
+
+    if (BlackboardComp)
     {
-        return EBTNodeResult::Failed;
+        float DynamicRadius = BlackboardComp->GetValueAsFloat(DynamicAcceptanceRadiusKey.SelectedKeyName);
+        if (DynamicRadius > 0.0f)
+        {
+            AcceptableRadius = DynamicRadius;
+        }
     }
-
-    FVector TargetLocation = BlackboardComp->GetValueAsVector(GetSelectedBlackboardKey());
-
-    AIController->MoveToLocation(TargetLocation, AcceptanceRadious);
-    return EBTNodeResult::Succeeded;
+    return Super::ExecuteTask(OwnerComp, NodeMemory);
 }

@@ -19,9 +19,5 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-
-	virtual void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload) override;
-	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload) override;
-
-	virtual bool PlayAttackMontage(int32 AttackType) override;
+	virtual bool PlayAttackMontage() override;
 };

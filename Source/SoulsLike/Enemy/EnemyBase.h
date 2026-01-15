@@ -5,14 +5,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "CombatComponent.h"
+#include "SoulsLike/SoulsLikesTypes.h"
 #include "EnemyBase.generated.h"
 
-struct AttackTypeAttribute
-{
-	float MinimumDistance;	  // 공격 발동 최소 거리
-	float WaitTime;			  // 대기 시간
-	UAnimMontage *AttackAnim; // 재생 애니메이션
-};
 UCLASS()
 class SOULSLIKE_API AEnemyBase : public ACharacter
 {
@@ -48,15 +43,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
 	TArray<UAnimMontage *> AttackMontages;
 
-	TArray<AttackTypeAttribute> AttackTypeAttributes;
-
 	UFUNCTION()
 	virtual void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
 	UFUNCTION()
 	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
-	virtual bool PlayAttackMontage(int32 AttackType);
+	virtual bool PlayAttackMontage();
 
 public:
 	// Called every frame
@@ -65,7 +58,7 @@ public:
 	virtual float AddHealth(float Amount);
 	virtual void Die();
 	virtual void Stun();
-	bool Attack(int32 AttackType);
+	bool Attack();
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
