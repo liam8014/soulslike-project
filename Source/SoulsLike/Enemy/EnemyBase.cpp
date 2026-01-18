@@ -41,6 +41,7 @@ void AEnemyBase::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayl
 	{
 		CombatComp->AttackBeforeTrace();
 		CombatComp->EnableAttackSweep();
+		UE_LOG(LogTemp, Display, TEXT("Start Sweep"));
 	}
 	if (NotifyName == TEXT("BeforeAttack"))
 	{
@@ -68,6 +69,7 @@ bool AEnemyBase::PlayAttackMontage()
 		UE_LOG(LogTemp, Error, TEXT("[PlayAttackMontage] Invalid Attack Type!"));
 		return false;
 	}
+	PlayAnimMontage(CombatComp->NextAnimMontage);
 	return true;
 }
 

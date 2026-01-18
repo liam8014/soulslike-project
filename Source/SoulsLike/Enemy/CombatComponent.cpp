@@ -14,6 +14,7 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::EnableAttackSweep()
 {
 	bIsSweeping = true;
+	UE_LOG(LogTemp, Warning, TEXT("EnableAttackSweep"));
 	ProcessedActors.Empty();
 }
 
@@ -36,9 +37,12 @@ void UCombatComponent::BeginPlay()
 
 void UCombatComponent::AttackTrace()
 {
-	// 1. Owner 및 Mesh 유효성 검사
 	if (!Owner)
-		return; // Owner 변수가 미리 캐싱되어 있다고 가정
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to find Owner"));
+		DisableAttackSweep();
+		return;
+	}
 
 	USkeletalMeshComponent *Mesh = Owner->GetMesh();
 	if (!Mesh)
@@ -55,15 +59,18 @@ void UCombatComponent::AttackTrace()
 		bIsAttacking = false;
 		return;
 	}
-
+	if (AttackRange <= 0.0f || AttackRadius <= 0.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Range or Radius is ZERO! Range: %f, Radius: %f"), AttackRange, AttackRadius);
+		return;
+	}
 	FVector Start = Mesh->GetSocketLocation(FName("weapon"));
 	FVector Forward = -Mesh->GetRightVector();
 	FVector End = Start + Forward * AttackRange;
 
 	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackRadius);
-
 	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(Owner); // 주인(나 자신) 무시
+	QueryParams.AddIgnoredActor(Owner);
 	QueryParams.bTraceComplex = true;
 
 	FCollisionObjectQueryParams ObjectQueryParams;
@@ -125,8 +132,6 @@ void UCombatComponent::AttackTrace()
 				}
 			}
 
-			// Hit 처리
-			UE_LOG(LogTemp, Warning, TEXT("Hit!"));
 			switch (HitPlayerCharacter->Hit(DamageMultiplier * AttackPower, KnockBackDistance, AttackDirection))
 			{
 			case EHitResult::HR_Parry:
@@ -183,7 +188,6 @@ void UCombatComponent::AttackBeforeTrace()
 		if (HitPlayerCharacter)
 		{
 			HitPlayerCharacter->bIsCounterTiming = true;
-			UE_LOG(LogTemp, Log, TEXT("[AttackBeforeTrace] Hit %s -> bIsCounterTiming = true"), *HitPlayerCharacter->GetName());
 		}
 	}
 	if (bDrawDebugShape)
@@ -207,7 +211,7 @@ void UCombatComponent::AttackBeforeTrace()
 
 void UCombatComponent::SetRandomAttackType()
 {
-	NextAttackType = 1; // FMath::RandRange(0, AttackTypeAttributes.Num() - 1);
+	NextAttackType = FMath::RandRange(0, AttackTypeAttributes.Num() - 2);
 	if (AttackTypeAttributes.IsValidIndex(NextAttackType))
 	{
 		NextAcceptance = AttackTypeAttributes[NextAttackType].MinimumDistance;

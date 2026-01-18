@@ -11,8 +11,8 @@ void UAttackWindow::NotifyBegin(USkeletalMeshComponent *MeshComp, UAnimSequenceB
     {
         if (UCombatComponent *CombatComp = Enemy->CombatComp)
         {
-            CombatComp->AttackBeforeTrace();
             CombatComp->SetAttackAttribute(DamageMultiplier, KnockBackDistance, AttackDirection);
+            CombatComp->AttackBeforeTrace();
             CombatComp->EnableAttackSweep();
         }
     }

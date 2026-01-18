@@ -13,26 +13,3 @@ void ABossEnemy1::BeginPlay()
 {
     Super::BeginPlay();
 }
-bool ABossEnemy1::PlayAttackMontage()
-{
-    if (!Super::PlayAttackMontage())
-    {
-        return false;
-    }
-    switch (CombatComp->NextAttackType)
-    {
-    case 0:
-        CombatComp->SetAttackAttribute(1.0, 200, EAttackDirection::AD_Left);
-        break;
-    case 1:
-        CombatComp->SetAttackAttribute(2.0, 1200, EAttackDirection::AD_Forward);
-        break;
-    case 2:
-        CombatComp->SetAttackAttribute(2.0, 1200, EAttackDirection::AD_Forward);
-        break;
-    default:
-        return false;
-    }
-    PlayAnimMontage(CombatComp->NextAnimMontage);
-    return true;
-}

@@ -49,7 +49,7 @@ protected:
 	UFUNCTION()
 	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
-	virtual bool PlayAttackMontage();
+	bool PlayAttackMontage();
 
 public:
 	// Called every frame
@@ -58,7 +58,7 @@ public:
 	virtual float AddHealth(float Amount);
 	virtual void Die();
 	virtual void Stun();
-	bool Attack();
+	virtual bool Attack();
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;

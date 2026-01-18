@@ -41,8 +41,10 @@ private:
 	float KnockBackDistance = 600.0f;
 
 	EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+
 	UPROPERTY(EditAnywhere)
-	float AttackRadius = 100.0f;
+	float AttackRadius = 100;
+
 	UPROPERTY(EditAnywhere)
 	float AttackRange = 70.0f;
 
