@@ -20,7 +20,7 @@ public:
 	void EnableAttackSweep();
 	void DisableAttackSweep();
 
-	void SetAttackAttribute(float Multiplier, float KnockBack, EAttackDirection Direction);
+	void SetAttackAttribute(float Multiplier, float KnockBack, EAttackDirection Direction, FName Socket);
 
 protected:
 	// Called when the game starts
@@ -34,8 +34,14 @@ private:
 	UPROPERTY(EditAnywhere)
 	float AttackPower = 10.0f;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawDebugShape = true;
+
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	int32 FixedAttackType = 0;
+
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bShouldFixAttackType = false;
 
 	float DamageMultiplier = 1.0f;
 	float KnockBackDistance = 600.0f;
@@ -63,5 +69,7 @@ public:
 	int32 NextAttackType = 0;
 	float NextAcceptance = 170.0f;
 	float NextWaitTime = 5.0f;
+
+	FName TraceSocket = FName("weapon");
 	UAnimMontage *NextAnimMontage = nullptr;
 };

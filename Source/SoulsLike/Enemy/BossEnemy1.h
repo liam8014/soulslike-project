@@ -10,6 +10,7 @@
  *
  */
 
+class AAOEExplosion;
 UCLASS()
 class SOULSLIKE_API ABossEnemy1 : public AEnemyBase
 {
@@ -19,4 +20,12 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	TSubclassOf<AAOEExplosion> AOEExplosionClass;
+
+	void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload) override;
+	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload) override;
+
+	void SpawnAOE();
 };

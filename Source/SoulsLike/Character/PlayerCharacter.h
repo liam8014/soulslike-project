@@ -210,13 +210,13 @@ protected:
 	void ResetMovement();
 
 	/* 조작 (걷기)*/
-	float WalkSpeed = 300;
+	float WalkSpeed = 450;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
-	float SideMovementMultiplier = 0.6f; // 좌/우 성분 계수
+	float SideMovementMultiplier = 0.5f; // 좌/우 성분 계수
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
-	float BackwardMovementMultiplier = 0.5f; // 뒤로 이동(정면 반대) 성분 계수
+	float BackwardMovementMultiplier = 0.3f; // 뒤로 이동(정면 반대) 성분 계수
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
 	float AlignmentThreshold = 0.9f; // 전방 기준 임계

@@ -64,7 +64,7 @@ void UCombatComponent::AttackTrace()
 		UE_LOG(LogTemp, Error, TEXT("Range or Radius is ZERO! Range: %f, Radius: %f"), AttackRange, AttackRadius);
 		return;
 	}
-	FVector Start = Mesh->GetSocketLocation(FName("weapon"));
+	FVector Start = Mesh->GetSocketLocation(TraceSocket);
 	FVector Forward = -Mesh->GetRightVector();
 	FVector End = Start + Forward * AttackRange;
 
@@ -211,7 +211,11 @@ void UCombatComponent::AttackBeforeTrace()
 
 void UCombatComponent::SetRandomAttackType()
 {
-	NextAttackType = FMath::RandRange(0, AttackTypeAttributes.Num() - 2);
+	NextAttackType = FMath::RandRange(0, AttackTypeAttributes.Num() - 1);
+	if (bShouldFixAttackType)
+	{
+		NextAttackType = FixedAttackType;
+	}
 	if (AttackTypeAttributes.IsValidIndex(NextAttackType))
 	{
 		NextAcceptance = AttackTypeAttributes[NextAttackType].MinimumDistance;
@@ -224,17 +228,12 @@ void UCombatComponent::SetRandomAttackType()
 	}
 }
 
-void UCombatComponent::SetAttackAttribute(float Multiplier, float KnockBack, EAttackDirection Direction)
+void UCombatComponent::SetAttackAttribute(float Multiplier, float KnockBack, EAttackDirection Direction, FName Socket)
 {
-	if (Multiplier != -1)
-	{
-		DamageMultiplier = Multiplier;
-	}
-	if (KnockBack != -1)
-	{
-		KnockBackDistance = KnockBack;
-	}
+	DamageMultiplier = Multiplier;
+	KnockBackDistance = KnockBack;
 	AttackDirection = Direction;
+	TraceSocket = Socket;
 }
 
 // Called every frame

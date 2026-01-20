@@ -23,6 +23,9 @@ class SOULSLIKE_API UAttackWindow : public UAnimNotifyState
 	UPROPERTY(EditAnywhere, Category = "Combat Data")
 	float KnockBackDistance = 1000.0f;
 
+	UPROPERTY(EditAnywhere, Category = "Combat Trace")
+	FName TraceSocket = FName("weapon");
+
 	virtual void NotifyBegin(USkeletalMeshComponent *MeshComp, UAnimSequenceBase *Animation, float TotalDuration, const FAnimNotifyEventReference &EventReference) override;
 	virtual void NotifyEnd(USkeletalMeshComponent *MeshComp, UAnimSequenceBase *Animation, const FAnimNotifyEventReference &EventReference) override;
 };
