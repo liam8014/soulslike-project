@@ -24,6 +24,16 @@ void AEnemyBase::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Combat Component set failed!"));
 	}
 
+	AttributeComp = FindComponentByClass<UAttributeComponent>();
+	if (AttributeComp)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Attribute Component is successfully set"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Attribute Component set failed!"));
+	}
+
 	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
 	{
 		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &AEnemyBase::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
@@ -44,32 +54,33 @@ void AEnemyBase::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayl
 		CombatComp->EnableAttackSweep();
 		UE_LOG(LogTemp, Display, TEXT("Start Sweep"));
 	}
-	if (NotifyName == TEXT("Track"))
+	if (NotifyName == TEXT("Dash") || NotifyName == TEXT("Approach"))
 	{
 		AAIController *AIC = Cast<AAIController>(GetController());
 		if (AIC)
 		{
-			// 1. 목표 지점(Focal Point) 가져오기
 			FVector TargetLocation = AIC->GetFocalPoint();
 			FVector MyLocation = GetActorLocation();
 
-			// 2. 방향 벡터 계산 (Z축 높낮이 차이는 무시하고 수평으로만 돌진)
 			FVector Direction = (TargetLocation - MyLocation);
-			Direction.Z = 0.0f;	   // 바닥으로 꺼지거나 하늘로 솟지 않게
-			Direction.Normalize(); // 길이를 1로 만듦 (방향만 남김)
+			Direction.Z = 0.0f;
+			Direction.Normalize();
 
-			// 3. 돌진 속도 설정 (원하는 만큼 빠르게 조절하세요)
-			float DashSpeed = 3500.0f;
-
-			// 4. 캐릭터 날리기 (Launch)
-			// 첫 번째 true: 기존 XY 속도를 무시하고 덮어씌움 (즉시 방향 전환)
-			// 두 번째 false: Z축(점프) 속도는 유지 (false)하거나 덮어씌움 (true)
+			float DashSpeed = NotifyName == TEXT("Dash") ? 3500.0f : 1500.0f;
 			LaunchCharacter(Direction * DashSpeed, true, false);
 
-			// [선택 사항] 회전도 즉시 타겟을 보게 맞출까요?
 			FRotator LookAtRot = Direction.Rotation();
 			SetActorRotation(LookAtRot);
 		}
+	}
+	if (NotifyName == TEXT("EndStun"))
+	{
+		AttributeComp->EnableChangeStamina();
+		bCanMove = true;
+	}
+	if (NotifyName == TEXT("EnableMove"))
+	{
+		bCanMove = true;
 	}
 }
 
@@ -110,21 +121,22 @@ void AEnemyBase::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
-float AEnemyBase::AddHealth(float Amount)
+void AEnemyBase::Hit(float Damage, float StaminaDamage)
 {
-	const float Damage = FMath::Clamp(Amount, 0.f, Health);
-	Health -= Damage;
-	if (Health <= 0.f)
-	{
-		Die();
-	}
-	return Damage;
+	AttributeComp->ChangeHealth(-Damage);
+	AttributeComp->ChangeStamina(-StaminaDamage);
 }
 void AEnemyBase::Die()
 {
 }
 void AEnemyBase::Stun()
 {
+	if (StunMontage)
+	{
+		PlayAnimMontage(StunMontage, 1.0);
+	}
+	bCanMove = false;
+	AttributeComp->DisableChangeStaimna();
 }
 
 bool AEnemyBase::Attack()

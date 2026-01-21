@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "CombatComponent.h"
+#include "AttributeComponent.h"
 #include "SoulsLike/SoulsLikesTypes.h"
 #include "EnemyBase.generated.h"
 
@@ -17,31 +18,25 @@ public:
 	// Sets default values for this pawn's properties
 	AEnemyBase();
 
-	int32 MaxAttackType = 0;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	UCombatComponent *CombatComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attribute")
+	UAttributeComponent *AttributeComp;
+
+	bool bCanMove = false;
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere)
-	float Health = 100.0f;
-	UPROPERTY(EditAnywhere)
-	float Stamina = 100.0f;
-
 	bool bIsDead = false;
 	bool bIsStunned = false;
 
-	bool bCanMove = false;
 	bool bIsAttacking = false; // 공격 중인지
 	bool bIsHitting = false;   // 피격 중인지
 	bool bCanBeHit = true;	   // 피격 가능한지
 	bool bIsSwept = false;	   // 스윕을 받는 중인지
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
-	TArray<UAnimMontage *> AttackMontages;
 
 	UFUNCTION()
 	virtual void OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
@@ -49,13 +44,16 @@ protected:
 	UFUNCTION()
 	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimMontage *StunMontage;
+
 	bool PlayAttackMontage();
 
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	virtual float AddHealth(float Amount);
+	virtual void Hit(float Damage, float StaminaDamage);
 	virtual void Die();
 	virtual void Stun();
 	virtual bool Attack();

@@ -34,55 +34,74 @@ void ABossEnemy1::SpawnAOE()
     if (!AOEExplosionClass)
         return;
 
-    FVector SpawnLocation = FVector::ZeroVector;
-    FRotator SpawnRotation = FRotator::ZeroRotator;
+    const int32 NumExplosions = 3;    // 소환 개수
+    const float SpawnRadius = 400.0f; // 랜덤 범위 (반지름)
+    const float TimeInterval = 0.2f;  // 폭발 간 시간차 (초)
+
+    FVector CenterLocation = FVector::ZeroVector;
     AAIController *AIC = Cast<AAIController>(GetController());
 
     if (AIC)
     {
-        // 1. AI가 보고 있는 지점(Focus Location) 가져오기
-        // Focus Actor가 있으면 그 액터의 위치를, 없으면 지정된 좌표를 리턴합니다.
-        FVector FocalPoint = AIC->GetFocalPoint();
-
-        // 2. 바닥 보정 (LineTrace)
-        // FocalPoint는 공중(눈높이)일 수 있으므로, 그 위치에서 아래로 레이를 쏴서 바닥을 찾습니다.
-        FHitResult HitResult;
-        FVector TraceStart = FocalPoint + FVector(0, 0, 500.0f); // 위에서
-        FVector TraceEnd = FocalPoint - FVector(0, 0, 1000.0f);  // 아래로
-
-        FCollisionQueryParams Params;
-        Params.AddIgnoredActor(this); // 나는 무시
-
-        bool bHit = GetWorld()->LineTraceSingleByChannel(
-            HitResult,
-            TraceStart,
-            TraceEnd,
-            ECC_Visibility, // 또는 ECC_WorldStatic
-            Params);
-
-        if (bHit)
-        {
-            // 바닥을 찾았으면 그 위치로 설정
-            SpawnLocation = HitResult.Location;
-        }
-        else
-        {
-            // 바닥을 못 찾았으면(허공이라면) 그냥 FocalPoint 높이에서 Z만 살짝 조정하거나 그대로 사용
-            SpawnLocation = FocalPoint;
-            SpawnLocation.Z = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-        }
+        CenterLocation = AIC->GetFocalPoint();
     }
     else
     {
-        // AI 컨트롤러가 없거나 실패 시 정면 사용
-        SpawnLocation = GetActorLocation() + (GetActorForwardVector() * 300.0f);
-        SpawnLocation.Z -= GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+        CenterLocation = GetActorLocation() + (GetActorForwardVector() * 300.0f);
     }
 
-    // 3. 액터 소환
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = this;
-    SpawnParams.Instigator = this;
+    for (int32 i = 1; i <= NumExplosions; i++)
+    {
+        float Delay = i * TimeInterval;
 
-    GetWorld()->SpawnActor<AAOEExplosion>(AOEExplosionClass, SpawnLocation, SpawnRotation, SpawnParams);
+        FTimerHandle TimerHandle;
+        FTimerDelegate TimerDel;
+
+        // 람다 함수 사용: this, 중심점, 반경, 클래스 정보를 캡처해서 나중에 실행함
+        // BindWeakLambda를 써야 보스가 죽어서 사라진 뒤에 폭발이 터지려 할 때 크래시가 안 남
+        TimerDel.BindWeakLambda(this, [this, CenterLocation, SpawnRadius]()
+                                {
+            if (!this->AOEExplosionClass) return;
+
+            // 랜덤 위치 계산
+            FVector RandomOffset;
+            RandomOffset.X = FMath::RandRange(-SpawnRadius, SpawnRadius);
+            RandomOffset.Y = FMath::RandRange(-SpawnRadius, SpawnRadius);
+            RandomOffset.Z = 0.0f;
+
+            FVector TargetFocalPoint = CenterLocation + RandomOffset;
+            FVector FinalSpawnLocation = TargetFocalPoint;
+
+            FHitResult HitResult;
+            FVector TraceStart = TargetFocalPoint + FVector(0, 0, 500.0f);
+            FVector TraceEnd = TargetFocalPoint - FVector(0, 0, 1000.0f);
+
+            FCollisionQueryParams Params;
+            Params.AddIgnoredActor(this);
+
+            bool bHit = GetWorld()->LineTraceSingleByChannel(
+                HitResult,
+                TraceStart,
+                TraceEnd,
+                ECC_Visibility,
+                Params);
+
+            if (bHit)
+            {
+                FinalSpawnLocation = HitResult.Location;
+            }
+            else
+            {
+                FinalSpawnLocation.Z = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+            }
+
+            FActorSpawnParameters SpawnParams;
+            SpawnParams.Owner = this;
+            SpawnParams.Instigator = this;
+            SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+            GetWorld()->SpawnActor<AAOEExplosion>(this->AOEExplosionClass, FinalSpawnLocation, FRotator::ZeroRotator, SpawnParams); });
+
+        GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, Delay, false);
+    }
 }

@@ -81,12 +81,10 @@ void AAOEExplosion::AttackTrace()
 
 				if (PlayerChar)
 				{
-					// 1. 플레이어 -> 폭발 위치로 향하는 방향 벡터 (Z축 무시하여 평면상 방향만 고려)
 					FVector ToSource = (GetActorLocation() - PlayerChar->GetActorLocation());
 					ToSource.Z = 0.0f;
 					ToSource.Normalize();
 
-					// 2. 플레이어의 기준 벡터 (Z축 무시)
 					FVector PlayerForward = PlayerChar->GetActorForwardVector();
 					PlayerForward.Z = 0.0f;
 					PlayerForward.Normalize();
@@ -95,16 +93,11 @@ void AAOEExplosion::AttackTrace()
 					PlayerRight.Z = 0.0f;
 					PlayerRight.Normalize();
 
-					// 3. 내적(Dot Product) 계산
-					// ForwardDot > 0 이면 앞, < 0 이면 뒤
-					// RightDot > 0 이면 오른쪽, < 0 이면 왼쪽
 					float ForwardDot = FVector::DotProduct(PlayerForward, ToSource);
 					float RightDot = FVector::DotProduct(PlayerRight, ToSource);
 
 					EAttackDirection HitDir = EAttackDirection::AD_Forward;
 
-					// 4. 더 크게 영향을 미치는 축(앞뒤 vs 좌우)을 찾아서 방향 결정
-					// 절대값을 비교하여 어느 쪽이 더 지배적인지 확인합니다.
 					if (FMath::Abs(ForwardDot) > FMath::Abs(RightDot))
 					{
 						// 앞/뒤가 더 가까움
@@ -131,12 +124,11 @@ void AAOEExplosion::AttackTrace()
 					}
 
 					PlayerChar->Hit(DamageAmount, 0, HitDir);
-					UE_LOG(LogTemp, Log, TEXT("Player Hit! Name: %s, Direction: %d"), *PlayerChar->GetName(), (int32)HitDir);
 				}
 			}
 		}
 	}
 
-	DrawDebugSphere(GetWorld(), GetActorLocation(), AttackRadius, 32, FColor::Red, false, 2.0f);
+	// DrawDebugSphere(GetWorld(), GetActorLocation(), AttackRadius, 32, FColor::Red, false, 2.0f);
 	Destroy();
 }

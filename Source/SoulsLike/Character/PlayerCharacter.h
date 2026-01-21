@@ -196,7 +196,7 @@ protected:
 	void AttackBeforeTrace(); // 공격 이전 트레이스(회피 타이밍)
 
 	/* 전투 (피격)*/
-	TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
+	// TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
 	TSet<AActor *> ProcessedActors;
 	UPROPERTY(EditAnywhere)
 	bool bDrawDebugShape = true;

@@ -29,6 +29,7 @@
 #include "Engine/World.h"	   // UWorld
 #include "Containers/Ticker.h" // FTSTicker, FTickerDelegate
 #include "SoulsLike/UI/StatusBar.h"
+#include "SoulsLike/Enemy/EnemyBase.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -315,6 +316,7 @@ void APlayerCharacter::SwitchFocus(const FInputActionValue &Value)
 {
 	ToogleFocus();
 }
+
 void APlayerCharacter::ToogleFocus()
 {
 	if (bIsFocusing)
@@ -457,15 +459,7 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 		bCanBeHit = true;
 		bIsDodging = false;
 		bIsCounterTiming = false;
-		if (bCanCounterAttack && ReadyCounterMontage)
-		{
-			bCanAttack = false;
-			PlayAnimMontage(ReadyCounterMontage, 1.0f);
-		}
-		else
-		{
-			ChangeMovement(EMovementState::MS_Idle);
-		}
+		ChangeMovement(EMovementState::MS_Idle);
 	}
 	if (NotifyName == TEXT("ReadyCounter"))
 	{
@@ -536,7 +530,7 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	}
 	if (NotifyName == TEXT("ReadyCounter"))
 	{
-		if (ReleaseCounterMontage && !bIsAttacking)
+		if (ReleaseCounterMontage && !bIsAttacking && MovementState != EMovementState::MS_Moving)
 		{
 			PlayAnimMontage(ReleaseCounterMontage, 1.0f);
 		}
@@ -698,33 +692,28 @@ void APlayerCharacter::AttackTrace()
 		return;
 	}
 
-	// [추가] 공격 범위 반지름 (필요에 따라 헤더로 빼거나 수치 조절)
 	float AttackRadius = 20.0f;
 
 	FVector Start = SwordMeshComponent->GetComponentLocation();
 	FVector Forward = SwordMeshComponent->GetUpVector();
 	FVector End = Start + Forward * LightAttackRange;
 
-	// [변경] 충돌 도형 생성 (구체)
 	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackRadius);
 
-	// 쿼리 파라미터 (자기 자신 무시)
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
 	QueryParams.bTraceComplex = true;
 
-	// Pawn 오브젝트 타입만 검사하도록 설정
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
 	TArray<FHitResult> Hits;
 
-	// [변경] LineTrace -> SweepMultiByObjectType
 	bool bHit = World->SweepMultiByObjectType(
 		Hits,
 		Start,
 		End,
-		FQuat::Identity, // 구체는 회전해도 모양이 같으므로 Identity
+		FQuat::Identity,
 		ObjectQueryParams,
 		Shape,
 		QueryParams);
@@ -740,19 +729,17 @@ void APlayerCharacter::AttackTrace()
 	for (auto H : Hits)
 	{
 		AActor *HitActor = H.GetActor();
-
 		if (ProcessedActors.Contains(HitActor))
 		{
 			continue;
 		}
 
-		APlayerCharacter *HitPlayerCharacter = nullptr;
-
-		HitPlayerCharacter = Cast<APlayerCharacter>(H.GetActor());
-		if (HitPlayerCharacter && HitPlayerCharacter->bCanBeHit)
+		AEnemyBase *HitEnemy = Cast<AEnemyBase>(H.GetActor());
+		if (HitEnemy)
 		{
 			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
 			ProcessedActors.Add(HitActor);
+			HitEnemy->Hit(LightAttackPower, 30.0);
 			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
 			{
 			case 1:
@@ -769,39 +756,38 @@ void APlayerCharacter::AttackTrace()
 			default:
 				break;
 			}
-			HitCharacters.Add(HitPlayerCharacter);
+			// HitCharacters.Add(HitPlayerCharacter);
 
-			if (!HitPlayerCharacter->bIsFocusing)
-			{ // 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
-				FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
-				ToAttacker.Z = 0.f;
+			// if (!HitPlayerCharacter->bIsFocusing)
+			// { // 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
+			// 	FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
+			// 	ToAttacker.Z = 0.f;
 
-				if (!ToAttacker.IsNearlyZero()) // 맞은 캐릭터 시점 고정하기
-				{
-					FRotator LookAtRot = ToAttacker.Rotation();
-					LookAtRot.Pitch = 0.f;
-					LookAtRot.Roll = 0.f;
+			// 	if (!ToAttacker.IsNearlyZero()) // 맞은 캐릭터 시점 고정하기
+			// 	{
+			// 		FRotator LookAtRot = ToAttacker.Rotation();
+			// 		LookAtRot.Pitch = 0.f;
+			// 		LookAtRot.Roll = 0.f;
 
-					if (AController *HitCtrl = HitPlayerCharacter->GetController())
-					{
-						HitCtrl->SetControlRotation(LookAtRot);
-					}
+			// 		if (AController *HitCtrl = HitPlayerCharacter->GetController())
+			// 		{
+			// 			HitCtrl->SetControlRotation(LookAtRot);
+			// 		}
 
-					// 액터 자체 회전도 설정
-					HitPlayerCharacter->SetActorRotation(LookAtRot);
-					// HitPlayerCharacter->GetCharacterMovement()->AddImpulse(FVector(100.0f, 0, 0), false);
-				}
-			}
-			switch (HitPlayerCharacter->Hit(LightAttackPower, 1040, AttackDirection))
-			{
-			case EHitResult::HR_Parry:
-				ReactStunned();
-				break;
-			case EHitResult::HR_Guard:
-				ReactBlocked();
-				break;
-			}
-			break;
+			// 		// 액터 자체 회전도 설정
+			// 		HitPlayerCharacter->SetActorRotation(LookAtRot);
+			// 	}
+			// }
+			// switch (HitPlayerCharacter->Hit(LightAttackPower))
+			// {
+			// case EHitResult::HR_Parry:
+			// 	ReactStunned();
+			// 	break;
+			// case EHitResult::HR_Guard:
+			// 	ReactBlocked();
+			// 	break;
+			// }
+			// break;
 		}
 	}
 }
@@ -1043,11 +1029,11 @@ void APlayerCharacter::StopGuarding()
 
 void APlayerCharacter::ResetHitCharacters()
 {
-	for (auto ch : HitCharacters)
-	{
-		ch->bCanBeHit = true;
-	}
-	HitCharacters.Empty();
+	// for (auto ch : HitCharacters)
+	// {
+	// 	ch->bCanBeHit = true;
+	// }
+	// HitCharacters.Empty();
 	ProcessedActors.Empty();
 }
 
