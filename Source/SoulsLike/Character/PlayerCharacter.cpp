@@ -781,7 +781,7 @@ void APlayerCharacter::AttackTrace()
 			ProcessedActors.Add(HitActor);
 			HitEnemy->Hit(LightAttackPower * DamageMultiplier, 10.0);
 
-			if (HitImpactVFX)
+			if (AttackImpactVFX)
 			{
 
 				FVector ImpactLocation = H.ImpactPoint;
@@ -800,7 +800,7 @@ void APlayerCharacter::AttackTrace()
 				// }
 				UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 					GetWorld(),
-					HitImpactVFX,
+					AttackImpactVFX,
 					ImpactLocation,
 					Rotation);
 			}

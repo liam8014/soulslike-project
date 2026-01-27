@@ -76,6 +76,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "VFX")
 	class UNiagaraSystem *HitImpactVFX;
 
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	class UNiagaraSystem *AttackImpactVFX;
+
 	/* 전투 (피격)*/
 	EHitResult Hit(float damage, float dist, EAttackDirection ad); // 피격
 
@@ -91,7 +94,7 @@ protected: // camera
 	FVector DefaultSocketOffset; // 게임 시작 시 자동 저장됨
 
 	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
-	FVector CounterReadySocketOffset = FVector(0.f, 50.f, -20.f); // 예: 살짝 오른쪽 아래로
+	FVector CounterReadySocketOffset = FVector(0.f, -50.f, -20.f); // 예: 살짝 오른쪽 아래로
 
 	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
 	float CameraInterpSpeed = 5.0f; // 카메라 이동 속도
