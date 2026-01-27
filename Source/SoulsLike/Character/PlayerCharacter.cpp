@@ -30,12 +30,18 @@
 #include "Containers/Ticker.h" // FTSTicker, FTickerDelegate
 #include "SoulsLike/UI/StatusBar.h"
 #include "SoulsLike/Enemy/EnemyBase.h"
+#include "NiagaraFunctionLibrary.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+}
+
+void APlayerCharacter::RestoreFOV()
+{
+	TargetFOV = DefaultFOV;
 }
 
 // Called when the game starts or when spawned
@@ -115,6 +121,16 @@ void APlayerCharacter::BeginPlay()
 			AddHealth(0.0f);
 			AddStamina(0.0f);
 		}
+	}
+
+	if (CameraBoom)
+	{
+		DefaultSocketOffset = CameraBoom->SocketOffset;
+	}
+	if (FollowCamera)
+	{
+		DefaultFOV = FollowCamera->FieldOfView;
+		TargetFOV = DefaultFOV; // 초기 목표는 기본값
 	}
 }
 // Move 입력 시 호출되는 함수
@@ -413,6 +429,31 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		LightAttack();
 	}
+
+	if (CameraBoom)
+	{
+		FVector TargetOffset = bCanCounterAttack ? CounterReadySocketOffset : DefaultSocketOffset;
+
+		CameraBoom->SocketOffset = FMath::VInterpTo(
+			CameraBoom->SocketOffset,
+			TargetOffset,
+			DeltaTime,
+			CameraInterpSpeed);
+	}
+
+	if (FollowCamera)
+	{
+		float CurrentFOV = FollowCamera->FieldOfView;
+		if (!FMath::IsNearlyEqual(CurrentFOV, TargetFOV, 0.1f))
+		{
+			float NewFOV = FMath::FInterpTo(
+				CurrentFOV,
+				TargetFOV,
+				DeltaTime,
+				FOVInterpSpeed);
+			FollowCamera->SetFieldOfView(NewFOV);
+		}
+	}
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent)
@@ -541,6 +582,7 @@ void APlayerCharacter::Attack()
 	if (bIsGuarding)
 	{
 		Parry();
+		return;
 	}
 	else if (bCanCounterAttack && bCanAttack)
 	{
@@ -551,17 +593,14 @@ void APlayerCharacter::Attack()
 		if (bCanCombo) // 플레이어가 콤보 연속 입력 시
 		{
 			bWantCombo = true;
-		}
-		if (!bCanAttack || !CanMove())
-		{
 			return;
 		}
-		if (!bIsAttacking && CanMove()) // 첫 공격 시작
+		if (bCanAttack && !bIsAttacking && CanMove()) // 첫 공격 시작
 		{
 			LightAttack();
-			return;
 		}
 	}
+	ResetHitCharacters();
 }
 
 void APlayerCharacter::LightAttack()
@@ -605,6 +644,7 @@ void APlayerCharacter::LightAttack()
 	if (CurrentAnimMontage && !bIsDodging)
 	{
 		bIsAttacking = true;
+		DamageMultiplier = 1.0f;
 		ChangeMovement(EMovementState::MS_Attacking);
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 	}
@@ -692,10 +732,10 @@ void APlayerCharacter::AttackTrace()
 		return;
 	}
 
-	float AttackRadius = 20.0f;
-
-	FVector Start = SwordMeshComponent->GetComponentLocation();
+	float AttackRadius = 5.0f;
 	FVector Forward = SwordMeshComponent->GetUpVector();
+	FVector Start = SwordMeshComponent->GetComponentLocation();
+
 	FVector End = Start + Forward * LightAttackRange;
 
 	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackRadius);
@@ -705,7 +745,7 @@ void APlayerCharacter::AttackTrace()
 	QueryParams.bTraceComplex = true;
 
 	FCollisionObjectQueryParams ObjectQueryParams;
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectQueryParams.AddObjectTypesToQuery(ECollisionChannel::ECC_PhysicsBody);
 
 	TArray<FHitResult> Hits;
 
@@ -739,7 +779,32 @@ void APlayerCharacter::AttackTrace()
 		{
 			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
 			ProcessedActors.Add(HitActor);
-			HitEnemy->Hit(LightAttackPower, 30.0);
+			HitEnemy->Hit(LightAttackPower * DamageMultiplier, 10.0);
+
+			if (HitImpactVFX)
+			{
+
+				FVector ImpactLocation = H.ImpactPoint;
+
+				if (ImpactLocation.IsZero())
+				{
+					ImpactLocation = HitEnemy->GetActorLocation();
+				}
+
+				FRotator Rotation = (-Forward).Rotation();
+
+				// FRotator Rotation = FRotator::ZeroRotator;
+				// if (!H.ImpactNormal.IsZero())
+				// {
+				// 	Rotation = H.ImpactNormal.Rotation();
+				// }
+				UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+					GetWorld(),
+					HitImpactVFX,
+					ImpactLocation,
+					Rotation);
+			}
+
 			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
 			{
 			case 1:
@@ -756,38 +821,6 @@ void APlayerCharacter::AttackTrace()
 			default:
 				break;
 			}
-			// HitCharacters.Add(HitPlayerCharacter);
-
-			// if (!HitPlayerCharacter->bIsFocusing)
-			// { // 공격자(this) 위치에서 피격자 위치로의 벡터 (피격자가 공격자를 바라보려면 공격자 - 피격자)
-			// 	FVector ToAttacker = GetActorLocation() - HitPlayerCharacter->GetActorLocation();
-			// 	ToAttacker.Z = 0.f;
-
-			// 	if (!ToAttacker.IsNearlyZero()) // 맞은 캐릭터 시점 고정하기
-			// 	{
-			// 		FRotator LookAtRot = ToAttacker.Rotation();
-			// 		LookAtRot.Pitch = 0.f;
-			// 		LookAtRot.Roll = 0.f;
-
-			// 		if (AController *HitCtrl = HitPlayerCharacter->GetController())
-			// 		{
-			// 			HitCtrl->SetControlRotation(LookAtRot);
-			// 		}
-
-			// 		// 액터 자체 회전도 설정
-			// 		HitPlayerCharacter->SetActorRotation(LookAtRot);
-			// 	}
-			// }
-			// switch (HitPlayerCharacter->Hit(LightAttackPower))
-			// {
-			// case EHitResult::HR_Parry:
-			// 	ReactStunned();
-			// 	break;
-			// case EHitResult::HR_Guard:
-			// 	ReactBlocked();
-			// 	break;
-			// }
-			// break;
 		}
 	}
 }
@@ -826,6 +859,7 @@ void APlayerCharacter::ReactStunned()
 		PlayAnimMontage(StunMontage, 1.0f);
 	}
 }
+
 EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 {
 	int32 index = 0;
@@ -958,11 +992,26 @@ void APlayerCharacter::CounterAttack()
 		return;
 	}
 	bIsAttacking = true;
+
 	bCanCounterAttack = false;
 	bCanBeHit = false;
 	ChangeMovement(EMovementState::MS_Attacking);
+	DamageMultiplier = 2.5f;
 	PlayAnimMontage(CounterMontage, 1.0f);
 	LaunchCharacter(GetActorForwardVector() * 6000, true, true);
+
+	if (FollowCamera)
+	{
+		TargetFOV = CounterActionFOV; // FOV를 넓힘 (예: 110)
+
+		// 0.25초 뒤에 원래 FOV로 복구 (빠른 이동이 끝날 즈음)
+		GetWorldTimerManager().SetTimer(
+			FOVRestoreTimerHandle,
+			this,
+			&APlayerCharacter::RestoreFOV,
+			0.25f, // 몽타주 길이나 이동 시간에 맞춰 조절하세요
+			false);
+	}
 }
 
 bool APlayerCharacter::CanMove()
@@ -995,18 +1044,18 @@ void APlayerCharacter::ChangeMovement(EMovementState ms)
 	if (MovementState != ms)
 	{
 		MovementState = ms;
-		if (GEngine)
-		{
-			// 고정 키: 중복 출력 방지 및 삭제용
-			static const int32 EnumDebugKey = 1001;
+		// if (GEngine)
+		// {
+		// 	// 고정 키: 중복 출력 방지 및 삭제용
+		// 	static const int32 EnumDebugKey = 1001;
 
-			// 이전 메시지 삭제 (있으면 삭제, 없어도 안전)
-			GEngine->RemoveOnScreenDebugMessage(EnumDebugKey);
+		// 	// 이전 메시지 삭제 (있으면 삭제, 없어도 안전)
+		// 	GEngine->RemoveOnScreenDebugMessage(EnumDebugKey);
 
-			// 출력
-			FText Display = EnumDisplayName(MovementState);
-			GEngine->AddOnScreenDebugMessage(EnumDebugKey, 10.0f, FColor::Yellow, Display.ToString());
-		}
+		// 	// 출력
+		// 	FText Display = EnumDisplayName(MovementState);
+		// 	GEngine->AddOnScreenDebugMessage(EnumDebugKey, 10.0f, FColor::Yellow, Display.ToString());
+		// }
 	}
 }
 void APlayerCharacter::Guard()
@@ -1035,6 +1084,24 @@ void APlayerCharacter::ResetHitCharacters()
 	// }
 	// HitCharacters.Empty();
 	ProcessedActors.Empty();
+}
+
+void APlayerCharacter::HideUI()
+{
+	if (StatusBar)
+	{
+		StatusBar->SetVisibility(ESlateVisibility::Hidden);
+		UE_LOG(LogTemp, Warning, TEXT("UI Hidden"));
+	}
+}
+
+void APlayerCharacter::ShowUI()
+{
+	if (StatusBar)
+	{
+		StatusBar->SetVisibility(ESlateVisibility::Visible);
+		UE_LOG(LogTemp, Warning, TEXT("UI Visible"));
+	}
 }
 
 void APlayerCharacter::AddHealth(float Amount)

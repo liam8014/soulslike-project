@@ -9,10 +9,25 @@
 #include "SoulsLike/SoulsLikesTypes.h"
 #include "EnemyBase.generated.h"
 
+struct FTimerHandle;
 UCLASS()
 class SOULSLIKE_API AEnemyBase : public ACharacter
 {
 	GENERATED_BODY()
+public:
+	void PlayMeshJitter(float Intensity = 5.0f, float Duration = 0.15f);
+
+protected:
+	void HandleMeshJitter();
+
+	void RestoreMeshPosition();
+
+private:
+	FTimerHandle JitterTimerHandle;
+	FTimerHandle JitterRestoreTimerHandle;
+
+	FVector OriginalMeshLocation;
+	float CurrentJitterIntensity;
 
 public:
 	// Sets default values for this pawn's properties
@@ -24,7 +39,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attribute")
 	UAttributeComponent *AttributeComp;
 
-	bool bCanMove = false;
+	bool bCanMove = true;
+	UPROPERTY(EditAnywhere)
+	bool bIsSpawnable = false;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnHealthChangedDelegate OnHealthChanged;
 
 protected:
 	// Called when the game starts or when spawned

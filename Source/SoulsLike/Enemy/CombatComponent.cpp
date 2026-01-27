@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "CombatComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
 #include "EnemyBase.h"
 // Sets default values for this component's properties
@@ -132,13 +133,24 @@ void UCombatComponent::AttackTrace()
 				}
 			}
 
-			switch (HitPlayerCharacter->Hit(DamageMultiplier * AttackPower, KnockBackDistance, AttackDirection))
+			EHitResult HitResult = HitPlayerCharacter->Hit(DamageMultiplier * AttackPower, KnockBackDistance, AttackDirection);
+			switch (HitResult)
 			{
 			case EHitResult::HR_Parry:
 				break;
 			case EHitResult::HR_Guard:
 				break;
+			case EHitResult::HR_CleanHit:
+				break;
 			}
+			FRotator ImpactRotation = H.ImpactNormal.Rotation();
+			UGameplayStatics::SpawnEmitterAtLocation(
+				GetWorld(),
+				HitImpactVFX,
+				H.ImpactPoint,
+				ImpactRotation,
+				true // bAutoDestroy (재생 끝나면 자동 삭제 여부: true)
+			);
 		}
 	}
 }

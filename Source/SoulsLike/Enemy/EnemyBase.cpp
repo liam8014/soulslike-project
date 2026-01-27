@@ -2,7 +2,58 @@
 
 #include "EnemyBase.h"
 #include "AIController.h"
+#include "TimerManager.h"
 #include "CombatComponent.h"
+void AEnemyBase::PlayMeshJitter(float Intensity, float Duration)
+{
+	if (!GetMesh())
+		return;
+
+	CurrentJitterIntensity = Intensity;
+
+	// 1. 이미 떨리고 있다면 타이머 초기화 (연타 맞았을 때 갱신)
+	GetWorld()->GetTimerManager().ClearTimer(JitterTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(JitterRestoreTimerHandle);
+
+	// 2. 아주 빠른 간격(0.01초 ~ 0.02초)으로 위치를 바꾸는 타이머 시작
+	GetWorld()->GetTimerManager().SetTimer(
+		JitterTimerHandle,
+		this,
+		&AEnemyBase::HandleMeshJitter,
+		0.015f, // 0.015초마다 흔들림 (60fps 기준 매 프레임)
+		true	// 반복
+	);
+
+	// 3. Duration 뒤에 멈추는 타이머 설정
+	GetWorld()->GetTimerManager().SetTimer(
+		JitterRestoreTimerHandle,
+		this,
+		&AEnemyBase::RestoreMeshPosition,
+		Duration,
+		false);
+}
+void AEnemyBase::HandleMeshJitter()
+{
+	if (!GetMesh())
+		return;
+
+	// 랜덤 벡터 생성 (-1 ~ 1 사이의 랜덤 값 * 강도)
+	FVector RandomOffset = FMath::VRand() * CurrentJitterIntensity;
+
+	// 원래 위치 + 랜덤 오프셋 적용
+	GetMesh()->SetRelativeLocation(OriginalMeshLocation + RandomOffset);
+}
+void AEnemyBase::RestoreMeshPosition()
+{
+	// 떨림 타이머 종료
+	GetWorld()->GetTimerManager().ClearTimer(JitterTimerHandle);
+
+	// 메시를 원래 위치로 깔끔하게 복구
+	if (GetMesh())
+	{
+		GetMesh()->SetRelativeLocation(OriginalMeshLocation);
+	}
+}
 // Sets default values
 AEnemyBase::AEnemyBase()
 {
@@ -14,6 +65,10 @@ AEnemyBase::AEnemyBase()
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
+	if (GetMesh())
+	{
+		OriginalMeshLocation = GetMesh()->GetRelativeLocation();
+	}
 	CombatComp = FindComponentByClass<UCombatComponent>();
 	if (CombatComp)
 	{
@@ -123,6 +178,7 @@ void AEnemyBase::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent
 
 void AEnemyBase::Hit(float Damage, float StaminaDamage)
 {
+	PlayMeshJitter(1, 0.05f);
 	AttributeComp->ChangeHealth(-Damage);
 	AttributeComp->ChangeStamina(-StaminaDamage);
 }

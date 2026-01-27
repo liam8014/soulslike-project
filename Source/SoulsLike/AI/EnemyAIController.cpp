@@ -6,10 +6,15 @@
 void AEnemyAIController::BeginPlay()
 {
     Super::BeginPlay();
+}
+
+void AEnemyAIController::OnPossess(APawn *InPawn)
+{
+    Super::OnPossess(InPawn);
     if (AIBehavior)
     {
         RunBehaviorTree(AIBehavior);
-        GetBlackboardComponent()->SetValueAsVector(TEXT("StartLocation"), GetPawn()->GetActorLocation());
+        GetBlackboardComponent()->SetValueAsVector(TEXT("StartLocation"), InPawn->GetActorLocation());
     }
 }
 

@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "AttributeComponent.h"
+#include "SoulsLike/UI/BossHealthBar.h"
 #include "EnemyBase.h"
 
 // Sets default values for this component's properties
@@ -18,6 +19,8 @@ void UAttributeComponent::ChangeHealth(float Amount)
 	if (bCanChangeHealth)
 	{
 		CurrentHealth = FMath::Clamp(CurrentHealth + Amount, 0.0f, MaxHealth);
+		BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
+		// OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
 	}
 }
 
@@ -39,6 +42,43 @@ void UAttributeComponent::ChangeStamina(float Amount)
 	}
 }
 
+// Called when the game starts
+void UAttributeComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	Owner = Cast<AEnemyBase>(GetOwner());
+	if (Owner == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to set Owner"));
+		return;
+	}
+
+	CurrentHealth = MaxHealth;
+	CurrentStamina = MaxStamina;
+
+	if (BossHealthBarClass && Owner && !Owner->bIsSpawnable)
+	{
+		BossHealthBar = CreateWidget<UBossHealthBar>(GetWorld(), BossHealthBarClass);
+		if (BossHealthBar)
+		{
+			BossHealthBar->AddToViewport();
+			BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
+		}
+	}
+	// ...
+}
+
+// Called every frame
+void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (CurrentStamina < MaxStamina)
+	{
+		CurrentStamina = FMath::Clamp(CurrentStamina + StaminaRegenAmount, CurrentStamina, MaxStamina);
+	}
+}
+
 void UAttributeComponent::EnableChangeHeatlh()
 {
 	bCanChangeHealth = true;
@@ -57,30 +97,4 @@ void UAttributeComponent::EnableChangeStamina()
 void UAttributeComponent::DisableChangeStaimna()
 {
 	bCanChangeStamina = false;
-}
-
-// Called when the game starts
-void UAttributeComponent::BeginPlay()
-{
-	Super::BeginPlay();
-	Owner = Cast<AEnemyBase>(GetOwner());
-	if (Owner == nullptr)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to set Owner"));
-	}
-
-	CurrentHealth = MaxHealth;
-	CurrentStamina = MaxStamina;
-	// ...
-}
-
-// Called every frame
-void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (CurrentStamina < MaxStamina)
-	{
-		CurrentStamina = FMath::Clamp(CurrentStamina + StaminaRegenAmount, CurrentStamina, MaxStamina);
-	}
 }

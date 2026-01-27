@@ -5,7 +5,11 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "AttributeComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedDelegate, float, CurrentHealth, float, MaxHealth);
+
 class AEnemyBase;
+class UBossHealthBar;
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SOULSLIKE_API UAttributeComponent : public UActorComponent
 {
@@ -27,6 +31,15 @@ public:
 	void DisableChangeStaimna();
 
 	AEnemyBase *Owner;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnHealthChangedDelegate OnHealthChanged;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UBossHealthBar> BossHealthBarClass;
+
+	UPROPERTY()
+	UBossHealthBar *BossHealthBar;
 
 protected:
 	// Called when the game starts

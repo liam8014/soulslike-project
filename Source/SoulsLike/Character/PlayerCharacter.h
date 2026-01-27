@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "SoulsLike/SoulsLikesTypes.h"
+#include "NiagaraSystem.h"
 #include "PlayerCharacter.generated.h"
 
 class UInputMappingContext;
@@ -52,6 +53,9 @@ public:
 	UPROPERTY()
 	UStatusBar *StatusBar;
 
+	void HideUI();
+	void ShowUI();
+
 	/* 체력 및 스테미나 */
 	void AddHealth(float Amount);
 	void AddStamina(float Amount);
@@ -69,6 +73,9 @@ public:
 	bool bIsSweeping = false;  // 스윕을 하는 중인지
 	bool bIsSwept = false;	   // 스윕을 받는 중인지
 
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	class UNiagaraSystem *HitImpactVFX;
+
 	/* 전투 (피격)*/
 	EHitResult Hit(float damage, float dist, EAttackDirection ad); // 피격
 
@@ -77,6 +84,33 @@ public:
 	bool bIsFocusing = false; // 플레이어가 포커싱 중인지 여부
 
 	bool bIsCounterTiming = false; // 공격을 받기 직전인지(회피 타이밍)
+
+protected: // camera
+	// 1. 카운터 준비 시 카메라 앵글 (Socket Offset)
+	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
+	FVector DefaultSocketOffset; // 게임 시작 시 자동 저장됨
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
+	FVector CounterReadySocketOffset = FVector(0.f, 50.f, -20.f); // 예: 살짝 오른쪽 아래로
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
+	float CameraInterpSpeed = 5.0f; // 카메라 이동 속도
+
+	// 2. 카운터 실행 시 FOV 연출
+	float DefaultFOV; // 게임 시작 시 자동 저장됨
+	float TargetFOV;  // 현재 목표 FOV
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
+	float CounterActionFOV = 110.0f; // 질주감을 위한 넓은 FOV
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
+	float FOVInterpSpeed = 15.0f; // FOV 변화 속도 (빨라야 타격감 있음)
+
+	FTimerHandle FOVRestoreTimerHandle; // FOV 복구용 타이머
+
+	// FOV를 원래대로 돌리는 함수
+	void RestoreFOV();
+
 protected:
 	float MaxHealth = 100.0f;
 	float Health = MaxHealth;
@@ -160,6 +194,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float LightAttackPower = 10.0f;
 
+	float DamageMultiplier = 1.0f;
+
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -196,7 +232,6 @@ protected:
 	void AttackBeforeTrace(); // 공격 이전 트레이스(회피 타이밍)
 
 	/* 전투 (피격)*/
-	// TArray<APlayerCharacter *> HitCharacters; // 피격 캐릭터들의 배열
 	TSet<AActor *> ProcessedActors;
 	UPROPERTY(EditAnywhere)
 	bool bDrawDebugShape = true;

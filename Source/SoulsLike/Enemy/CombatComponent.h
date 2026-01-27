@@ -6,7 +6,9 @@
 #include "Components/ActorComponent.h"
 #include "SoulsLike/Character/PlayerCharacter.h"
 #include "SoulsLike/SoulsLikesTypes.h"
+
 #include "CombatComponent.generated.h"
+
 // class UAnimMontage;
 class AEnemyBase;
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
@@ -56,6 +58,9 @@ private:
 
 	void AttackTrace();
 	TSet<AActor *> ProcessedActors;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	class UParticleSystem *HitImpactVFX;
 
 public:
 	// Called every frame
