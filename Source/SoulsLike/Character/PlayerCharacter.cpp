@@ -44,6 +44,21 @@ void APlayerCharacter::RestoreFOV()
 	TargetFOV = DefaultFOV;
 }
 
+void APlayerCharacter::ChangeFOV(float FOV)
+{
+	if (FollowCamera)
+	{
+		TargetFOV = FOV;
+
+		GetWorldTimerManager().SetTimer(
+			FOVRestoreTimerHandle,
+			this,
+			&APlayerCharacter::RestoreFOV,
+			0.25f,
+			false);
+	}
+}
+
 // Called when the game starts or when spawned
 void APlayerCharacter::BeginPlay()
 {
@@ -468,6 +483,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputCom
 		EnhancedInput->BindAction(SwitchFocusAction, ETriggerEvent::Started, this, &APlayerCharacter::SwitchFocus);
 		EnhancedInput->BindAction(ChangeFocusTargetAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeFocusTarget);
 		EnhancedInput->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::Attack);
+		EnhancedInput->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::HeavyAttack);
 
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
 		EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
@@ -537,6 +553,10 @@ void APlayerCharacter::OnNotifyBegin(FName NotifyName, const FBranchingPointNoti
 	if (NotifyName == TEXT("BeforeAttack"))
 	{
 		AttackBeforeTrace();
+	}
+	if (NotifyName == TEXT("ChangeFOV"))
+	{
+		ChangeFOV(CounterActionFOV);
 	}
 }
 
@@ -646,7 +666,26 @@ void APlayerCharacter::LightAttack()
 		bIsAttacking = true;
 		DamageMultiplier = 1.0f;
 		ChangeMovement(EMovementState::MS_Attacking);
-		PlayAnimMontage(CurrentAnimMontage, 1.0f);
+		PlayAnimMontage(CurrentAnimMontage, 1.5f);
+	}
+}
+
+void APlayerCharacter::HeavyAttack()
+{
+	if (!bCanAttack || bIsAttacking)
+	{
+		return;
+	}
+	ResetHitCharacters();
+	if (HeavyAttackMontage)
+	{
+		bIsAttacking = true;
+		ChangeMovement(EMovementState::MS_Attacking);
+		AddStamina(-StaminaHeavyAttackCost);
+		DamageMultiplier = 2.5f;
+		PlayAnimMontage(HeavyAttackMontage);
+
+		LaunchCharacter(GetActorForwardVector() * 1500 + FVector(0, 0, 100), true, true);
 	}
 }
 
@@ -867,12 +906,18 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 	bCanCounterAttack = false;
 	bCanAttack = false;
 	EHitResult res;
+	FVector KnockBackVector = -GetActorForwardVector() * dist + FVector(0, 0, 100);
 	// bCanBeHit = false;
 	bIsCounterTiming = false; // 닷지 저스트 실패
 	if (bIsParrying)
 	{
 		res = EHitResult::HR_Parry;
-		LaunchCharacter(-GetActorForwardVector() * dist * 0.5, true, true);
+		LaunchCharacter(KnockBackVector * 0.5, true, true);
+		AddStamina(20.0f);
+		if (ParryActivationMontage)
+		{
+			PlayAnimMontage(ParryActivationMontage);
+		}
 	}
 	else
 	{
@@ -888,7 +933,7 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 			AddHealth(-damage);
 			res = EHitResult::HR_CleanHit;
 		}
-		LaunchCharacter(-GetActorForwardVector() * dist, true, true);
+		LaunchCharacter(KnockBackVector, true, true);
 		if (GetStamina() > 0)
 		{
 			PlayHitMontage(ad);
@@ -982,7 +1027,8 @@ void APlayerCharacter::Dodge()
 	{
 		UE_LOG(LogTemp, Display, TEXT("Dodge Just Didn't Acticated."));
 	}
-	PlayAnimMontage(DodgeMontage, 2.0f);
+	LaunchCharacter(-GetActorForwardVector() * 3000 + FVector(0, 0, 50), true, false);
+	PlayAnimMontage(DodgeMontage, 1.5f);
 }
 void APlayerCharacter::CounterAttack()
 {
@@ -996,22 +1042,10 @@ void APlayerCharacter::CounterAttack()
 	bCanCounterAttack = false;
 	bCanBeHit = false;
 	ChangeMovement(EMovementState::MS_Attacking);
-	DamageMultiplier = 2.5f;
+	DamageMultiplier = 3.5f;
 	PlayAnimMontage(CounterMontage, 1.0f);
-	LaunchCharacter(GetActorForwardVector() * 6000, true, true);
-
-	if (FollowCamera)
-	{
-		TargetFOV = CounterActionFOV; // FOV를 넓힘 (예: 110)
-
-		// 0.25초 뒤에 원래 FOV로 복구 (빠른 이동이 끝날 즈음)
-		GetWorldTimerManager().SetTimer(
-			FOVRestoreTimerHandle,
-			this,
-			&APlayerCharacter::RestoreFOV,
-			0.25f, // 몽타주 길이나 이동 시간에 맞춰 조절하세요
-			false);
-	}
+	LaunchCharacter(GetActorForwardVector() * 4200 + FVector(0, 0, 100), true, true);
+	ChangeFOV(CounterActionFOV);
 }
 
 bool APlayerCharacter::CanMove()

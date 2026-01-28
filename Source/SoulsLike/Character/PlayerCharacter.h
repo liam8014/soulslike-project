@@ -74,9 +74,6 @@ public:
 	bool bIsSwept = false;	   // 스윕을 받는 중인지
 
 	UPROPERTY(EditAnywhere, Category = "VFX")
-	class UNiagaraSystem *HitImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
 	class UNiagaraSystem *AttackImpactVFX;
 
 	/* 전투 (피격)*/
@@ -107,12 +104,12 @@ protected: // camera
 	float CounterActionFOV = 110.0f; // 질주감을 위한 넓은 FOV
 
 	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
-	float FOVInterpSpeed = 15.0f; // FOV 변화 속도 (빨라야 타격감 있음)
+	float FOVInterpSpeed = 15.0f; // FOV 변화 속도
 
 	FTimerHandle FOVRestoreTimerHandle; // FOV 복구용 타이머
 
-	// FOV를 원래대로 돌리는 함수
 	void RestoreFOV();
+	void ChangeFOV(float FOV);
 
 protected:
 	float MaxHealth = 100.0f;
@@ -125,6 +122,8 @@ protected:
 	const float StaminaRunStartCost = 2.5f;	   // 달리기 시작 소모량
 	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
 	const float StaminaDodgeCost = 23.0f;	   // 회피 소모량
+
+	const float StaminaHeavyAttackCost = 9.0f; // 스테미나 강 공격 소모량
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -145,6 +144,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> AttackAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> HeavyAttackAction;
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> RunAction;
@@ -159,6 +160,7 @@ protected:
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
 	void Attack();											// 상태에 따라 공격을 한다
 	void LightAttack();										// 기본 공격(약한 공격)을 한다
+	void HeavyAttack();										// 강공격을 한다
 	void Jump() override;									// 공격 중 점프 비활성화를 위한 오버라이드
 	void Run();												// 캐릭터의 이동속도 상한을 증가시킨다
 	void StopRunning();										// 캐릭터의 이동속도 상한을 기본 속도로 설정한다
@@ -202,22 +204,28 @@ protected:
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주 레퍼런스
+	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<EAttackDirection, UAnimMontage *> HitMontages; // 피격 몽타주 레퍼런스
+	UAnimMontage *HeavyAttackMontage; // 강공격 몽타주
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주 레퍼런스
+	TMap<EAttackDirection, UAnimMontage *> HitMontages; // 피격 몽타주
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *DashAttackMontage; // 대쉬공격 몽타주 레퍼런스
+	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *BlockedMontage; // 공격 막힘 몽타주 레퍼런스
+	UAnimMontage *DashAttackMontage; // 대쉬공격 몽타주
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *BlockedMontage; // 공격 막힘 몽타주
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *ParryMontage; // 패링 몽타주
+
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage *ParryActivationMontage; // 패링 발동 몽타주
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage *StunMontage; // 스턴 몽타주

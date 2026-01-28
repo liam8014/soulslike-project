@@ -9,7 +9,7 @@
 
 #include "CombatComponent.generated.h"
 
-// class UAnimMontage;
+class UParticleSystem;
 class AEnemyBase;
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SOULSLIKE_API UCombatComponent : public UActorComponent
@@ -60,7 +60,13 @@ private:
 	TSet<AActor *> ProcessedActors;
 
 	UPROPERTY(EditAnywhere, Category = "VFX")
-	class UParticleSystem *HitImpactVFX;
+	UParticleSystem *HitImpactVFX;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	UParticleSystem *GuardImpactVFX;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	UParticleSystem *ParryImpactVFX;
 
 public:
 	// Called every frame

@@ -132,10 +132,12 @@ void AEnemyBase::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayl
 	{
 		AttributeComp->EnableChangeStamina();
 		bCanMove = true;
+		bIsStunned = false;
 	}
 	if (NotifyName == TEXT("EnableMove"))
 	{
 		bCanMove = true;
+		bIsStunned = true;
 	}
 }
 
@@ -179,6 +181,10 @@ void AEnemyBase::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent
 void AEnemyBase::Hit(float Damage, float StaminaDamage)
 {
 	PlayMeshJitter(1, 0.05f);
+	if (bIsStunned)
+	{
+		Damage *= 2;
+	}
 	AttributeComp->ChangeHealth(-Damage);
 	AttributeComp->ChangeStamina(-StaminaDamage);
 }
@@ -192,6 +198,7 @@ void AEnemyBase::Stun()
 		PlayAnimMontage(StunMontage, 1.0);
 	}
 	bCanMove = false;
+	bIsStunned = true;
 	AttributeComp->DisableChangeStaimna();
 }
 

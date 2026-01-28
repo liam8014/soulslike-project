@@ -66,7 +66,7 @@ void UCombatComponent::AttackTrace()
 		return;
 	}
 	FVector Start = Mesh->GetSocketLocation(TraceSocket);
-	FVector Forward = -Mesh->GetRightVector();
+	FVector Forward = -Mesh->GetSocketRotation(TraceSocket).Vector();
 	FVector End = Start + Forward * AttackRange;
 
 	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackRadius);
@@ -134,23 +134,33 @@ void UCombatComponent::AttackTrace()
 			}
 
 			EHitResult HitResult = HitPlayerCharacter->Hit(DamageMultiplier * AttackPower, KnockBackDistance, AttackDirection);
+			UParticleSystem *HitParticle = HitImpactVFX;
 			switch (HitResult)
 			{
 			case EHitResult::HR_Parry:
+				HitParticle = ParryImpactVFX;
+				if (Owner->AttributeComp)
+				{
+					Owner->AttributeComp->ChangeStamina(-30.0f);
+				}
 				break;
 			case EHitResult::HR_Guard:
+				HitParticle = GuardImpactVFX;
 				break;
 			case EHitResult::HR_CleanHit:
+				HitParticle = HitImpactVFX;
 				break;
 			}
 			FRotator ImpactRotation = H.ImpactNormal.Rotation();
-			UGameplayStatics::SpawnEmitterAtLocation(
-				GetWorld(),
-				HitImpactVFX,
-				H.ImpactPoint,
-				ImpactRotation,
-				true // bAutoDestroy (재생 끝나면 자동 삭제 여부: true)
-			);
+			if (HitParticle)
+			{
+				UGameplayStatics::SpawnEmitterAtLocation(
+					GetWorld(),
+					HitParticle,
+					H.ImpactPoint,
+					ImpactRotation,
+					true);
+			}
 		}
 	}
 }
