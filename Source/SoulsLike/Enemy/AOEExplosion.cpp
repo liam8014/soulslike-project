@@ -49,7 +49,11 @@ void AAOEExplosion::Explode()
 
 void AAOEExplosion::AttackTrace()
 {
-	UE_LOG(LogTemp, Log, TEXT("Trace"));
+	if (ExplosionSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ExplosionSound, GetActorLocation());
+	}
+	// UE_LOG(LogTemp, Log, TEXT("Trace"));
 	TSet<AActor *> ProcessedActors;
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionShape CollisionShape = FCollisionShape::MakeSphere(AttackRadius);

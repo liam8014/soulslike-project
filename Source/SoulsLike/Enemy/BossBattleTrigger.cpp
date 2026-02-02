@@ -97,6 +97,11 @@ void ABossBattleTrigger::OnSequenceFinished()
 			SpawnedBoss->SpawnDefaultController();
 		}
 	}
+
+	if (BossBattleBGM)
+	{
+		BGMComponent = UGameplayStatics::SpawnSound2D(this, BossBattleBGM);
+	}
 }
 
 void ABossBattleTrigger::Tick(float DeltaTime)

@@ -3,6 +3,7 @@
 #include "EnemyBase.h"
 #include "AIController.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "CombatComponent.h"
 void AEnemyBase::PlayMeshJitter(float Intensity, float Duration)
 {
@@ -180,13 +181,18 @@ void AEnemyBase::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent
 
 void AEnemyBase::Hit(float Damage, float StaminaDamage)
 {
-	PlayMeshJitter(1, 0.05f);
+	PlayMeshJitter(5, 0.05f);
 	if (bIsStunned)
 	{
 		Damage *= 2;
 	}
 	AttributeComp->ChangeHealth(-Damage);
 	AttributeComp->ChangeStamina(-StaminaDamage);
+
+	if (HitSFX)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, HitSFX, GetActorLocation());
+	}
 }
 void AEnemyBase::Die()
 {

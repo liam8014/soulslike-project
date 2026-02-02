@@ -7,6 +7,7 @@
 #include "CombatComponent.h"
 #include "AttributeComponent.h"
 #include "SoulsLike/SoulsLikesTypes.h"
+#include "Sound/SoundBase.h"
 #include "EnemyBase.generated.h"
 
 struct FTimerHandle;
@@ -68,6 +69,9 @@ protected:
 	UAnimMontage *StunMontage;
 
 	bool PlayAttackMontage();
+
+	UPROPERTY(EditAnywhere, Category = "SFX")
+	USoundBase *HitSFX;
 
 public:
 	// Called every frame

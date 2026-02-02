@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Sound/Soundbase.h"
 #include "AOEExplosion.generated.h"
 
 class UParticleSystem;
@@ -35,11 +36,12 @@ protected:
 	float ExplosionDelay = 1.5f;
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	float TraceDelay = 0.2f;
+	float TraceDelay = 0.4f;
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float DamageAmount = 20.0f;
-
+	UPROPERTY(EditDefaultsOnly, Category = "SFX")
+	USoundBase *ExplosionSound;
 
 public:
 	// Called every frame

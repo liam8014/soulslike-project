@@ -666,7 +666,7 @@ void APlayerCharacter::LightAttack()
 		bIsAttacking = true;
 		DamageMultiplier = 1.0f;
 		ChangeMovement(EMovementState::MS_Attacking);
-		PlayAnimMontage(CurrentAnimMontage, 1.5f);
+		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 	}
 }
 
@@ -680,6 +680,7 @@ void APlayerCharacter::HeavyAttack()
 	if (HeavyAttackMontage)
 	{
 		bIsAttacking = true;
+		bCanAttack = false;
 		ChangeMovement(EMovementState::MS_Attacking);
 		AddStamina(-StaminaHeavyAttackCost);
 		DamageMultiplier = 2.5f;
@@ -820,6 +821,29 @@ void APlayerCharacter::AttackTrace()
 			ProcessedActors.Add(HitActor);
 			HitEnemy->Hit(LightAttackPower * DamageMultiplier, 10.0);
 
+			FRotator VFXRotation = FRotator::ZeroRotator;
+			FRotator ActorRot = GetActorRotation();
+
+			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
+			{
+			case 1:
+			case 4:
+				AttackDirection = EAttackDirection::AD_Left;
+				VFXRotation = FRotator(0.0f, ActorRot.Yaw - 45.0f, 0.0f);
+				break;
+			case 2:
+			case 3:
+				AttackDirection = EAttackDirection::AD_Right;
+				VFXRotation = FRotator(0, ActorRot.Yaw + 45.0f, 0.0f); // 예시: Pitch를 90도로
+				break;
+
+				AttackDirection = EAttackDirection::AD_Forward;
+				break;
+			default:
+				VFXRotation = (-Forward).Rotation();
+				break;
+			}
+
 			if (AttackImpactVFX)
 			{
 
@@ -830,8 +854,6 @@ void APlayerCharacter::AttackTrace()
 					ImpactLocation = HitEnemy->GetActorLocation();
 				}
 
-				FRotator Rotation = (-Forward).Rotation();
-
 				// FRotator Rotation = FRotator::ZeroRotator;
 				// if (!H.ImpactNormal.IsZero())
 				// {
@@ -841,42 +863,22 @@ void APlayerCharacter::AttackTrace()
 					GetWorld(),
 					AttackImpactVFX,
 					ImpactLocation,
-					Rotation);
-			}
-
-			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
-			{
-			case 1:
-			case 3:
-			case 4:
-				AttackDirection = EAttackDirection::AD_Left;
-				break;
-			case 2:
-				AttackDirection = EAttackDirection::AD_Right;
-				break;
-				// 기존 코드에 있던 unreachable code 부분은 로직 유지를 위해 그대로 둡니다.
-				AttackDirection = EAttackDirection::AD_Forward;
-				break;
-			default:
-				break;
+					VFXRotation);
 			}
 		}
 	}
 }
 void APlayerCharacter::Parry()
 {
-	if (GetStamina() >= 20.0)
+	if (!bIsHitting && GetStamina() >= 20.0 && ParryMontage)
 	{
 		AddStamina(-20.0f);
+		bIsGuarding = false;
+		PlayAnimMontage(ParryMontage, 1.0f);
 	}
 	else
 	{
 		return;
-	}
-	if (ParryMontage)
-	{
-		bIsGuarding = false;
-		PlayAnimMontage(ParryMontage, 1.0f);
 	}
 }
 void APlayerCharacter::ReactBlocked()
@@ -942,6 +944,18 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 		{
 			ReactStunned();
 		}
+	}
+	switch (res)
+	{
+	case EHitResult::HR_Guard:
+		UE_LOG(LogTemp, Warning, TEXT("Guard Reaction"));
+		break;
+	case EHitResult::HR_Parry:
+		UE_LOG(LogTemp, Warning, TEXT("Parry Reaction"));
+		break;
+	case EHitResult::HR_CleanHit:
+		UE_LOG(LogTemp, Warning, TEXT("CleanHit Reaction"));
+		break;
 	}
 	return res;
 }
@@ -1044,13 +1058,21 @@ void APlayerCharacter::CounterAttack()
 	ChangeMovement(EMovementState::MS_Attacking);
 	DamageMultiplier = 3.5f;
 	PlayAnimMontage(CounterMontage, 1.0f);
-	LaunchCharacter(GetActorForwardVector() * 4200 + FVector(0, 0, 100), true, true);
+
+	FVector LaunchDir = GetActorForwardVector();
+	LaunchDir = LaunchDir.RotateAngleAxis(-10.0f, FVector::UpVector);
+
+	FVector FinalVelocity = (LaunchDir * 6000.0f) + FVector(0, 0, 300.0f);
+
+	LaunchCharacter(FinalVelocity, true, true);
+
+	// LaunchCharacter(GetActorForwardVector(), true, true);
 	ChangeFOV(CounterActionFOV);
 }
 
 bool APlayerCharacter::CanMove()
 {
-	if (bIsHitting /*|| bJustLanded*/)
+	if (bIsHitting || bIsAttacking)
 	{
 		return false;
 	}
@@ -1094,7 +1116,7 @@ void APlayerCharacter::ChangeMovement(EMovementState ms)
 }
 void APlayerCharacter::Guard()
 {
-	if (!bIsGuarding && GetStamina() > 5)
+	if (!bIsGuarding && GetStamina() > 5 && !bIsParrying)
 	{
 		bIsGuarding = true;
 		MoveComp->MaxWalkSpeed = WalkSpeed * 0.7;

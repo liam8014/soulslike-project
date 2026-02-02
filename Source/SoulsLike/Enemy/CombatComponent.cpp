@@ -15,7 +15,6 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::EnableAttackSweep()
 {
 	bIsSweeping = true;
-	UE_LOG(LogTemp, Warning, TEXT("EnableAttackSweep"));
 	ProcessedActors.Empty();
 }
 

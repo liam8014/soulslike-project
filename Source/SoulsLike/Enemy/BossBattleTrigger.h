@@ -7,6 +7,7 @@
 #include "LevelSequence.h"
 #include "LevelSequencePlayer.h"
 #include "LevelSequenceActor.h"
+#include "Sound/SoundBase.h"
 #include "BossBattleTrigger.generated.h"
 
 UCLASS()
@@ -48,6 +49,9 @@ protected:
 	UFUNCTION()
 	void OnSequenceFinished();
 
+	UPROPERTY(EditAnywhere, Category = "BossEvent")
+	USoundBase *BossBattleBGM;
+
 private:
 	UPROPERTY()
 	ALevelSequenceActor *SequenceActor; // 재생 중인 시퀀스 액터
@@ -56,6 +60,9 @@ private:
 	class AEnemyBase *SpawnedBoss; // 스폰된 보스 저장
 
 	bool bIsTriggered = false; // 중복 실행 방지
+
+	UPROPERTY()
+	UAudioComponent *BGMComponent;
 
 public:
 	// Called every frame

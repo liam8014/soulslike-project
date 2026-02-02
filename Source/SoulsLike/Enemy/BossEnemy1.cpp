@@ -31,6 +31,7 @@ void ABossEnemy1::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPaylo
 
 void ABossEnemy1::SpawnAOE()
 {
+
     if (!AOEExplosionClass)
         return;
 

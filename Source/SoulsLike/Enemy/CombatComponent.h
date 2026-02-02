@@ -6,7 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "SoulsLike/Character/PlayerCharacter.h"
 #include "SoulsLike/SoulsLikesTypes.h"
-
+#include "Sound/SoundBase.h"
 #include "CombatComponent.generated.h"
 
 class UParticleSystem;
