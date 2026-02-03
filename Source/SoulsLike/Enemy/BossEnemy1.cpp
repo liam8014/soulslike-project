@@ -15,6 +15,19 @@ ABossEnemy1::ABossEnemy1()
 void ABossEnemy1::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (GetMesh())
+    {
+        const int32 MatNum = GetMesh()->GetNumMaterials();
+        for (int32 i = 0; i < MatNum; i++)
+        {
+            UMaterialInstanceDynamic *DynMat = GetMesh()->CreateDynamicMaterialInstance(i);
+            if (DynMat)
+            {
+                MeshMIDs.Add(DynMat);
+            }
+        }
+    }
 }
 
 void ABossEnemy1::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload &Payload)

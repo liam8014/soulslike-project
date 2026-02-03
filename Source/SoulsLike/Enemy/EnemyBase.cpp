@@ -132,7 +132,10 @@ void AEnemyBase::OnNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayl
 	if (NotifyName == TEXT("EndStun"))
 	{
 		AttributeComp->EnableChangeStamina();
-		bCanMove = true;
+		if (AttributeComp->GetHealth())
+		{
+			bCanMove = true;
+		}
 		bIsStunned = false;
 	}
 	if (NotifyName == TEXT("EnableMove"))
@@ -152,6 +155,10 @@ void AEnemyBase::OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayloa
 
 bool AEnemyBase::PlayAttackMontage()
 {
+	if (bIsDead)
+	{
+		return false;
+	}
 	UAnimInstance *AnimInstance = GetMesh()->GetAnimInstance();
 	if (!AnimInstance)
 	{
@@ -165,6 +172,41 @@ bool AEnemyBase::PlayAttackMontage()
 	}
 	PlayAnimMontage(CombatComp->NextAnimMontage);
 	return true;
+}
+
+void AEnemyBase::StartDissolveEffect()
+{
+	CurrentDissolveValue = 1.1f;
+
+	GetWorldTimerManager().SetTimer(
+		DissolveTimerHandle,
+		this,
+		&AEnemyBase::UpdateDissolveEffect,
+		0.02f,
+		true);
+}
+
+void AEnemyBase::UpdateDissolveEffect()
+{
+	CurrentDissolveValue = FMath::FInterpConstantTo(CurrentDissolveValue, 0.0f, 0.02f, DissolveSpeed);
+	for (UMaterialInstanceDynamic *Mat : MeshMIDs)
+	{
+		if (Mat)
+		{
+			Mat->SetScalarParameterValue(FName("DissolveAmount"), CurrentDissolveValue);
+		}
+	}
+
+	if (FMath::IsNearlyEqual(CurrentDissolveValue, 0.0f, 0.001f))
+	{
+		for (UMaterialInstanceDynamic *Mat : MeshMIDs)
+		{
+			if (Mat)
+				Mat->SetScalarParameterValue(FName("DissolveAmount"), 0.0f);
+		}
+		GetWorldTimerManager().ClearTimer(DissolveTimerHandle);
+		Destroy();
+	}
 }
 
 // Called every frame
@@ -181,6 +223,10 @@ void AEnemyBase::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent
 
 void AEnemyBase::Hit(float Damage, float StaminaDamage)
 {
+	if (bIsDead)
+	{
+		return;
+	}
 	PlayMeshJitter(5, 0.05f);
 	if (bIsStunned)
 	{
@@ -196,6 +242,18 @@ void AEnemyBase::Hit(float Damage, float StaminaDamage)
 }
 void AEnemyBase::Die()
 {
+	bCanMove = false;
+	bIsDead = true;
+	StartDissolveEffect();
+	AttributeComp->HideHealthBar();
+	if (DieMontage)
+	{
+		PlayAnimMontage(DieMontage, 1.0f);
+	}
+	if (OnDie.IsBound())
+	{
+		OnDie.Broadcast();
+	}
 }
 void AEnemyBase::Stun()
 {

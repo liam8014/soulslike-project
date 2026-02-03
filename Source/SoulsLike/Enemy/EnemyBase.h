@@ -9,7 +9,7 @@
 #include "SoulsLike/SoulsLikesTypes.h"
 #include "Sound/SoundBase.h"
 #include "EnemyBase.generated.h"
-
+DECLARE_MULTICAST_DELEGATE(FOnDie);
 struct FTimerHandle;
 UCLASS()
 class SOULSLIKE_API AEnemyBase : public ACharacter
@@ -17,9 +17,11 @@ class SOULSLIKE_API AEnemyBase : public ACharacter
 	GENERATED_BODY()
 public:
 	void PlayMeshJitter(float Intensity = 5.0f, float Duration = 0.15f);
+	FOnDie OnDie;
 
 protected:
-	void HandleMeshJitter();
+	void
+	HandleMeshJitter();
 
 	void RestoreMeshPosition();
 
@@ -68,10 +70,26 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Animation")
 	UAnimMontage *StunMontage;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimMontage *DieMontage;
+
 	bool PlayAttackMontage();
 
 	UPROPERTY(EditAnywhere, Category = "SFX")
 	USoundBase *HitSFX;
+
+	UPROPERTY()
+	TArray<UMaterialInstanceDynamic *> MeshMIDs;
+
+	FTimerHandle DissolveTimerHandle;
+
+	float CurrentDissolveValue = 1.1f;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	float DissolveSpeed = 0.5f;
+
+	void StartDissolveEffect();
+	void UpdateDissolveEffect();
 
 public:
 	// Called every frame

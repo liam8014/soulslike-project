@@ -14,12 +14,26 @@ UAttributeComponent::UAttributeComponent()
 	// ...
 }
 
+float UAttributeComponent::GetHealth()
+{
+	return CurrentHealth;
+}
+
+float UAttributeComponent::GetStamina()
+{
+	return CurrentStamina;
+}
+
 void UAttributeComponent::ChangeHealth(float Amount)
 {
 	if (bCanChangeHealth)
 	{
 		CurrentHealth = FMath::Clamp(CurrentHealth + Amount, 0.0f, MaxHealth);
 		BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
+		if (CurrentHealth <= 0)
+		{
+			Owner->Die();
+		}
 		// OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
 	}
 }
@@ -39,6 +53,14 @@ void UAttributeComponent::ChangeStamina(float Amount)
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("You can't change stamina now."));
+	}
+}
+
+void UAttributeComponent::HideHealthBar()
+{
+	if (BossHealthBar)
+	{
+		BossHealthBar->RemoveFromParent();
 	}
 }
 

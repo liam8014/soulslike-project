@@ -312,7 +312,7 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 	APawn *Target = FocusTargetArray[CurrentFocusIndex];
 	FVector TargetLoc = Target->GetActorLocation();
 	FVector PlayerLoc = this->GetActorLocation();
-	if (FVector::Dist(TargetLoc, PlayerLoc) > FocusSearchRadius)
+	if (!IsValid(Target) || FVector::Dist(TargetLoc, PlayerLoc) > FocusSearchRadius)
 	{
 		ToogleFocus();
 		return;
@@ -324,7 +324,6 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 		FocusIndicatorWidget->SetPositionInViewport(ScreenPos + FVector2D(0.0f, -30.0f), false);
 	}
 
-	// 카메라(또는 스프링암) 월드 위치
 	FVector CamLoc = FollowCamera
 						 ? FollowCamera->GetComponentLocation()
 						 : CameraBoom->GetComponentLocation();
@@ -694,7 +693,6 @@ void APlayerCharacter::HeavyAttack()
 		bCanAttack = false;
 		ChangeMovement(EMovementState::MS_Attacking);
 		AddStamina(-StaminaHeavyAttackCost);
-		// DamageMultiplier = 2.5f;
 		SetAttackAttribute(3.0f, 3.5f, EAttackDirection::AD_Forward, HeavyAttackImpactVFX);
 		PlayAnimMontage(HeavyAttackMontage);
 

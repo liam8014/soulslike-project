@@ -49,6 +49,9 @@ protected:
 	UFUNCTION()
 	void OnSequenceFinished();
 
+	UFUNCTION()
+	void OnDieReceived();
+
 	UPROPERTY(EditAnywhere, Category = "BossEvent")
 	USoundBase *BossBattleBGM;
 

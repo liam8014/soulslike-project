@@ -4,6 +4,7 @@
 #include "GameFramework/Character.h"
 #include "EnemyBase.h" // 보스 헤더
 #include "SoulsLike/Character/PlayerCharacter.h"
+#include "Components/AudioComponent.h"
 #include "Blueprint/UserWidget.h"
 
 ABossBattleTrigger::ABossBattleTrigger()
@@ -95,6 +96,7 @@ void ABossBattleTrigger::OnSequenceFinished()
 		if (SpawnedBoss)
 		{
 			SpawnedBoss->SpawnDefaultController();
+			SpawnedBoss->OnDie.AddUObject(this, &ABossBattleTrigger::OnDieReceived);
 		}
 	}
 
@@ -104,6 +106,13 @@ void ABossBattleTrigger::OnSequenceFinished()
 	}
 }
 
+void ABossBattleTrigger::OnDieReceived()
+{
+	if (BGMComponent && BGMComponent->IsPlaying())
+	{
+		BGMComponent->FadeOut(5.0f, 0.0f);
+	}
+}
 void ABossBattleTrigger::Tick(float DeltaTime)
 {
 }
