@@ -31,6 +31,7 @@
 #include "SoulsLike/UI/StatusBar.h"
 #include "SoulsLike/Enemy/EnemyBase.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -434,7 +435,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 	else
 	{
 
-		if ((MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Moving) && Stamina < MaxStamina)
+		if ((MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Moving) && Stamina < MaxStamina && !bIsAttacking)
 		{
 			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
 		}
@@ -647,8 +648,19 @@ void APlayerCharacter::LightAttack()
 	{
 		CurrentAttackCombo = 2;
 	}
-
-	ResetHitCharacters(); // 피격 캐릭터들, 리액션 가능하도록 초기화
+	switch (CurrentAttackCombo)
+	{
+	case 1:
+	case 4:
+		AttackDirection = EAttackDirection::AD_Left;
+		break;
+	case 2:
+	case 3:
+		AttackDirection = EAttackDirection::AD_Right;
+		break;
+	}
+	SetAttackAttribute(1.0f, 1.0f, AttackDirection, LightAttackImpactVFX);
+	ResetHitCharacters();
 	UAnimMontage *CurrentAnimMontage = nullptr;
 
 	if (bIsRunning && GetVelocity().Size() >= (RunSpeed * 0.85f)) // 플레이어 캐릭터 현재 속도가 달리기 속도의 85% 이상일 때, 대쉬 공격 재생
@@ -664,7 +676,6 @@ void APlayerCharacter::LightAttack()
 	if (CurrentAnimMontage && !bIsDodging)
 	{
 		bIsAttacking = true;
-		DamageMultiplier = 1.0f;
 		ChangeMovement(EMovementState::MS_Attacking);
 		PlayAnimMontage(CurrentAnimMontage, 1.0f);
 	}
@@ -683,7 +694,8 @@ void APlayerCharacter::HeavyAttack()
 		bCanAttack = false;
 		ChangeMovement(EMovementState::MS_Attacking);
 		AddStamina(-StaminaHeavyAttackCost);
-		DamageMultiplier = 2.5f;
+		// DamageMultiplier = 2.5f;
+		SetAttackAttribute(3.0f, 3.5f, EAttackDirection::AD_Forward, HeavyAttackImpactVFX);
 		PlayAnimMontage(HeavyAttackMontage);
 
 		LaunchCharacter(GetActorForwardVector() * 1500 + FVector(0, 0, 100), true, true);
@@ -705,7 +717,6 @@ void APlayerCharacter::AttackBeforeTrace()
 	// 전방 방향(액터의 정면)
 	FVector Forward = GetActorForwardVector();
 
-	// 설정 가능한 파라미터 (필요시 조정)
 	const float FrontOffset = 50.0f; // 액터 앞쪽으로 박스 시작 지점까지의 거리
 	const float SweepRange = 150.0f; // 박스가 스윕할 총 거리
 	// half extents: (forwardHalf, lateralHalf, verticalHalf)
@@ -817,53 +828,49 @@ void APlayerCharacter::AttackTrace()
 		AEnemyBase *HitEnemy = Cast<AEnemyBase>(H.GetActor());
 		if (HitEnemy)
 		{
-			EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+			// EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
 			ProcessedActors.Add(HitActor);
-			HitEnemy->Hit(LightAttackPower * DamageMultiplier, 10.0);
+			HitEnemy->Hit(AttackPower * DamageMultiplier, AttackPower * StaminaMultiplier);
 
 			FRotator VFXRotation = FRotator::ZeroRotator;
 			FRotator ActorRot = GetActorRotation();
 
-			switch (CurrentAttackCombo) // 콤보에 따라 공격 방향 설정
+			switch (AttackDirection)
 			{
-			case 1:
-			case 4:
-				AttackDirection = EAttackDirection::AD_Left;
+			case EAttackDirection::AD_Left:
 				VFXRotation = FRotator(0.0f, ActorRot.Yaw - 45.0f, 0.0f);
 				break;
-			case 2:
-			case 3:
-				AttackDirection = EAttackDirection::AD_Right;
-				VFXRotation = FRotator(0, ActorRot.Yaw + 45.0f, 0.0f); // 예시: Pitch를 90도로
+			case EAttackDirection::AD_Right:
+				VFXRotation = FRotator(0.0f, ActorRot.Yaw + 45.0f, 0.0f);
 				break;
-
-				AttackDirection = EAttackDirection::AD_Forward;
+			case EAttackDirection::AD_Forward:
+				VFXRotation = FRotator(0.0f, ActorRot.Yaw + 90.0f, 70.0);
 				break;
 			default:
 				VFXRotation = (-Forward).Rotation();
 				break;
 			}
-
+			FVector ImpactLocation = H.ImpactPoint;
 			if (AttackImpactVFX)
 			{
-
-				FVector ImpactLocation = H.ImpactPoint;
-
 				if (ImpactLocation.IsZero())
 				{
 					ImpactLocation = HitEnemy->GetActorLocation();
 				}
-
-				// FRotator Rotation = FRotator::ZeroRotator;
-				// if (!H.ImpactNormal.IsZero())
-				// {
-				// 	Rotation = H.ImpactNormal.Rotation();
-				// }
 				UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 					GetWorld(),
 					AttackImpactVFX,
 					ImpactLocation,
 					VFXRotation);
+			}
+			if (ImpactParticle)
+			{
+				UGameplayStatics::SpawnEmitterAtLocation(
+					GetWorld(),
+					ImpactParticle,
+					ImpactLocation,
+					VFXRotation,
+					true);
 			}
 		}
 	}
@@ -1056,18 +1063,26 @@ void APlayerCharacter::CounterAttack()
 	bCanCounterAttack = false;
 	bCanBeHit = false;
 	ChangeMovement(EMovementState::MS_Attacking);
-	DamageMultiplier = 3.5f;
+	SetAttackAttribute(4.0f, 1.0f, AttackDirection, CounterAttackImpactVFX);
 	PlayAnimMontage(CounterMontage, 1.0f);
 
 	FVector LaunchDir = GetActorForwardVector();
 	LaunchDir = LaunchDir.RotateAngleAxis(-10.0f, FVector::UpVector);
 
-	FVector FinalVelocity = (LaunchDir * 6000.0f) + FVector(0, 0, 300.0f);
+	FVector FinalVelocity = (LaunchDir * 4000.0f) + FVector(0, 0, 150.0f);
 
 	LaunchCharacter(FinalVelocity, true, true);
 
 	// LaunchCharacter(GetActorForwardVector(), true, true);
 	ChangeFOV(CounterActionFOV);
+}
+
+void APlayerCharacter::SetAttackAttribute(float DMultiplier, float SMultiplier, EAttackDirection Direction, UNiagaraSystem *Niagara)
+{
+	DamageMultiplier = DMultiplier;
+	StaminaMultiplier = SMultiplier;
+	AttackDirection = Direction;
+	AttackImpactVFX = Niagara;
 }
 
 bool APlayerCharacter::CanMove()

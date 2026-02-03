@@ -73,11 +73,23 @@ public:
 	bool bIsSweeping = false;  // 스윕을 하는 중인지
 	bool bIsSwept = false;	   // 스윕을 받는 중인지
 
-	UPROPERTY(EditAnywhere, Category = "VFX")
 	class UNiagaraSystem *AttackImpactVFX;
 
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	class UNiagaraSystem *LightAttackImpactVFX;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	class UNiagaraSystem *HeavyAttackImpactVFX;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	class UNiagaraSystem *CounterAttackImpactVFX;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	UParticleSystem *ImpactParticle;
+
 	/* 전투 (피격)*/
-	EHitResult Hit(float damage, float dist, EAttackDirection ad); // 피격
+	EHitResult
+	Hit(float damage, float dist, EAttackDirection ad); // 피격
 
 	/* 카메라 및 포커싱 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
@@ -123,7 +135,7 @@ protected:
 	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
 	const float StaminaDodgeCost = 23.0f;	   // 회피 소모량
 
-	const float StaminaHeavyAttackCost = 9.0f; // 스테미나 강 공격 소모량
+	const float StaminaHeavyAttackCost = 13.0f; // 스테미나 강 공격 소모량
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -167,6 +179,8 @@ protected:
 	void Dodge();											// 캐릭터가 회피한다
 	void CounterAttack();
 
+	void SetAttackAttribute(float DMultiplier, float SMultiplier, EAttackDirection Direction, UNiagaraSystem *Niagara);
+
 	/* 카메라 및 포커싱 */
 	void ToogleFocus();						 //  SwitchFocus의 실제 구현부
 	bool SearchFocusTarget();				 // 포커싱 타겟을 탐색하여 성공 여부를 반환한다
@@ -197,9 +211,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float LightAttackRange = 120.0f; // 기본 공격 범위
 	UPROPERTY(EditAnywhere, Category = "Combat")
-	float LightAttackPower = 10.0f;
+	float AttackPower = 10.0f;
 
 	float DamageMultiplier = 1.0f;
+	float StaminaMultiplier = 1.0f;
+	EAttackDirection AttackDirection;
 
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
