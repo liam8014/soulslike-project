@@ -14,6 +14,15 @@ UAttributeComponent::UAttributeComponent()
 	// ...
 }
 
+void UAttributeComponent::InitAttribute(float Health, float Stamina, float StaminaRegen)
+{
+	MaxHealth = Health;
+	CurrentHealth = MaxHealth;
+	MaxStamina = Stamina;
+	CurrentStamina = MaxStamina;
+	StaminaRegenAmount = StaminaRegen;
+}
+
 float UAttributeComponent::GetHealth()
 {
 	return CurrentHealth;
@@ -22,6 +31,16 @@ float UAttributeComponent::GetHealth()
 float UAttributeComponent::GetStamina()
 {
 	return CurrentStamina;
+}
+
+void UAttributeComponent::SetHealth(float NewHealth)
+{
+	CurrentHealth = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
+}
+
+void UAttributeComponent::SetStamina(float NewStamina)
+{
+	CurrentStamina = FMath::Clamp(NewStamina, 0.0f, MaxStamina);
 }
 
 void UAttributeComponent::ChangeHealth(float Amount)
@@ -34,7 +53,6 @@ void UAttributeComponent::ChangeHealth(float Amount)
 		{
 			Owner->Die();
 		}
-		// OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
 	}
 }
 

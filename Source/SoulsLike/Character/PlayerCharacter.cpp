@@ -906,17 +906,19 @@ void APlayerCharacter::ReactStunned()
 	}
 }
 
-EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
+EHitResult APlayerCharacter::Hit(const FGameplayHitInfo &HitInfo)
 {
-	int32 index = 0;
-	bIsAttacking = false; // 피격 중 공격 판정 방지
-	bCanCounterAttack = false;
-	bCanAttack = false;
 	EHitResult res;
-	FVector KnockBackVector = -GetActorForwardVector() * dist + FVector(0, 0, 100);
-	// bCanBeHit = false;
+
+	bIsAttacking = false; // 피격 중 공격 판정 방지
+	bCanAttack = false;
+
+	bCanCounterAttack = false;
 	bIsCounterTiming = false; // 닷지 저스트 실패
-	if (bIsParrying)
+
+	FVector KnockBackVector = -GetActorForwardVector() * HitInfo.KnockBackDistance + FVector(0, 0, 100);
+
+	if (HitInfo.bCanBlock && bIsParrying)
 	{
 		res = EHitResult::HR_Parry;
 		LaunchCharacter(KnockBackVector * 0.5, true, true);
@@ -929,39 +931,41 @@ EHitResult APlayerCharacter::Hit(float damage, float dist, EAttackDirection ad)
 	else
 	{
 		bIsHitting = true;
-		if (bIsGuarding)
+		if (HitInfo.bCanBlock && bIsGuarding)
 		{
-			AddHealth(-damage * 0.3);
-			AddStamina(-damage * 1.5);
+			AddHealth(-HitInfo.DamageAmount * 0.3);
+			AddStamina(-HitInfo.DamageAmount * 1.5);
 			res = EHitResult::HR_Guard;
 		}
 		else
 		{
-			AddHealth(-damage);
+			bIsGuarding = false;
+			AddHealth(-HitInfo.DamageAmount);
 			res = EHitResult::HR_CleanHit;
 		}
 		LaunchCharacter(KnockBackVector, true, true);
 		if (GetStamina() > 0)
 		{
-			PlayHitMontage(ad);
+			PlayHitMontage(HitInfo.AttackDirection);
 		}
 		else
 		{
 			ReactStunned();
 		}
 	}
-	switch (res)
+	if (res == EHitResult::HR_Guard || res == EHitResult::HR_Parry)
 	{
-	case EHitResult::HR_Guard:
-		UE_LOG(LogTemp, Warning, TEXT("Guard Reaction"));
-		break;
-	case EHitResult::HR_Parry:
-		UE_LOG(LogTemp, Warning, TEXT("Parry Reaction"));
-		break;
-	case EHitResult::HR_CleanHit:
-		UE_LOG(LogTemp, Warning, TEXT("CleanHit Reaction"));
-		break;
+		if (GuardImpactVFX && ParryImpactVFX)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(
+				GetWorld(),
+				res == EHitResult::HR_Guard ? GuardImpactVFX : ParryImpactVFX,
+				HitInfo.HitLocation,
+				HitInfo.ImpactNormal.Rotation(),
+				true);
+		}
 	}
+
 	return res;
 }
 

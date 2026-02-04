@@ -37,38 +37,31 @@ void UCombatComponent::BeginPlay()
 
 void UCombatComponent::AttackTrace()
 {
-	if (!Owner)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to find Owner"));
-		DisableAttackSweep();
+	if (!Owner || !Owner->GetMesh() || !GetWorld())
 		return;
+
+	TArray<FHitResult> Hits;
+	bool bHit = PerformAttackSweep(Hits);
+
+	if (!bHit)
+		return;
+
+	for (const FHitResult &H : Hits)
+	{
+		ProcessHit(H);
 	}
+}
+
+bool UCombatComponent::PerformAttackSweep(TArray<FHitResult> &OutHits)
+{
+	if (AttackRange <= 0.0f || AttackRadius <= 0.0f)
+		return false;
 
 	USkeletalMeshComponent *Mesh = Owner->GetMesh();
-	if (!Mesh)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] Mesh is null"));
-		bIsAttacking = false;
-		return;
-	}
-
-	UWorld *World = GetWorld();
-	if (!World)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] GetWorld() returned null"));
-		bIsAttacking = false;
-		return;
-	}
-	if (AttackRange <= 0.0f || AttackRadius <= 0.0f)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Range or Radius is ZERO! Range: %f, Radius: %f"), AttackRange, AttackRadius);
-		return;
-	}
 	FVector Start = Mesh->GetSocketLocation(TraceSocket);
 	FVector Forward = -Mesh->GetSocketRotation(TraceSocket).Vector();
 	FVector End = Start + Forward * AttackRange;
 
-	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackRadius);
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(Owner);
 	QueryParams.bTraceComplex = true;
@@ -76,91 +69,84 @@ void UCombatComponent::AttackTrace()
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
-	TArray<FHitResult> Hits;
-
-	bool bHit = World->SweepMultiByObjectType(
-		Hits,
+	bool bHit = GetWorld()->SweepMultiByObjectType(
+		OutHits,
 		Start,
 		End,
 		FQuat::Identity,
 		ObjectQueryParams,
-		Shape,
+		FCollisionShape::MakeSphere(AttackRadius),
 		QueryParams);
 
 	if (bDrawDebugShape)
 	{
-		DrawDebugSphere(World, Start, AttackRadius, 12, FColor::Green, false, 1.0f);
-		DrawDebugSphere(World, End, AttackRadius, 12, FColor::Red, false, 1.0f);
+		DrawDebugSphere(GetWorld(), Start, AttackRadius, 12, FColor::Green, false, 1.0f);
+		DrawDebugSphere(GetWorld(), End, AttackRadius, 12, FColor::Red, false, 1.0f);
 	}
 
-	if (!bHit)
-	{
+	return bHit;
+}
+
+void UCombatComponent::ProcessHit(const FHitResult &HitResult)
+{
+	AActor *HitActor = HitResult.GetActor();
+
+	if (!HitActor || ProcessedActors.Contains(HitActor))
 		return;
+
+	APlayerCharacter *Player = Cast<APlayerCharacter>(HitActor);
+	if (!Player || !Player->bCanBeHit)
+		return;
+
+	ProcessedActors.Add(HitActor);
+
+	if (!Player->bIsFocusing)
+	{
+		FVector ToAttacker = Owner->GetActorLocation() - Player->GetActorLocation();
+		ToAttacker.Z = 0.f;
+		if (!ToAttacker.IsNearlyZero())
+		{
+			FRotator LookAtRot = ToAttacker.Rotation();
+			LookAtRot.Pitch = 0.f;
+			LookAtRot.Roll = 0.f;
+
+			Player->SetActorRotation(LookAtRot);
+			if (AController *PC = Player->GetController())
+			{
+				PC->SetControlRotation(LookAtRot);
+			}
+		}
 	}
 
-	for (const FHitResult &H : Hits)
+	FGameplayHitInfo HitInfo;
+	HitInfo.DamageAmount = DamageMultiplier * AttackPower;
+	HitInfo.KnockBackDistance = KnockBackDistance;
+	HitInfo.AttackDirection = AttackDirection;
+	HitInfo.HitLocation = HitResult.ImpactPoint;
+	HitInfo.ImpactNormal = HitResult.ImpactNormal;
+	HitInfo.DamageCauser = Owner;
+	HitInfo.bCanBlock = true;
+
+	EHitResult HitType = Player->Hit(HitInfo);
+
+	if (HitType == EHitResult::HR_Parry && Owner->AttributeComp)
 	{
-		AActor *HitActor = H.GetActor();
+		Owner->AttributeComp->ChangeStamina(-30.0f);
+	}
 
-		if (ProcessedActors.Contains(HitActor))
-		{
-			continue;
-		}
+	SpawnImpactVFX(HitResult, HitType);
+}
 
-		APlayerCharacter *HitPlayerCharacter = Cast<APlayerCharacter>(HitActor);
-
-		if (HitPlayerCharacter && HitPlayerCharacter->bCanBeHit)
-		{
-			ProcessedActors.Add(HitActor);
-
-			if (!HitPlayerCharacter->bIsFocusing)
-			{
-				FVector ToAttacker = Owner->GetActorLocation() - HitPlayerCharacter->GetActorLocation();
-				ToAttacker.Z = 0.f;
-
-				if (!ToAttacker.IsNearlyZero())
-				{
-					FRotator LookAtRot = ToAttacker.Rotation();
-					LookAtRot.Pitch = 0.f;
-					LookAtRot.Roll = 0.f;
-
-					if (AController *HitCtrl = HitPlayerCharacter->GetController())
-					{
-						HitCtrl->SetControlRotation(LookAtRot);
-					}
-					HitPlayerCharacter->SetActorRotation(LookAtRot);
-				}
-			}
-
-			EHitResult HitResult = HitPlayerCharacter->Hit(DamageMultiplier * AttackPower, KnockBackDistance, AttackDirection);
-			UParticleSystem *HitParticle = HitImpactVFX;
-			switch (HitResult)
-			{
-			case EHitResult::HR_Parry:
-				HitParticle = ParryImpactVFX;
-				if (Owner->AttributeComp)
-				{
-					Owner->AttributeComp->ChangeStamina(-30.0f);
-				}
-				break;
-			case EHitResult::HR_Guard:
-				HitParticle = GuardImpactVFX;
-				break;
-			case EHitResult::HR_CleanHit:
-				HitParticle = HitImpactVFX;
-				break;
-			}
-			FRotator ImpactRotation = H.ImpactNormal.Rotation();
-			if (HitParticle)
-			{
-				UGameplayStatics::SpawnEmitterAtLocation(
-					GetWorld(),
-					HitParticle,
-					H.ImpactPoint,
-					ImpactRotation,
-					true);
-			}
-		}
+void UCombatComponent::SpawnImpactVFX(const FHitResult &Hit, EHitResult HitType)
+{
+	if (HitType == EHitResult::HR_CleanHit)
+	{
+		UGameplayStatics::SpawnEmitterAtLocation(
+			GetWorld(),
+			HitImpactVFX,
+			Hit.ImpactPoint,
+			Hit.ImpactNormal.Rotation(),
+			true);
 	}
 }
 
@@ -177,8 +163,8 @@ void UCombatComponent::AttackBeforeTrace()
 	FVector Start = Owner->GetActorLocation();
 	FVector Forward = Owner->GetActorForwardVector();
 
-	const float FrontOffset = 50.0f; // 액터 앞쪽으로 박스 시작 지점까지의 거리
-	const float SweepRange = 150.0f; // 박스가 스윕할 총 거리
+	const float FrontOffset = 50.0f;
+	const float SweepRange = 150.0f;
 
 	const FVector HalfExtents = FVector(30.0f, 60.0f, 80.0f);
 
@@ -232,16 +218,16 @@ void UCombatComponent::AttackBeforeTrace()
 
 void UCombatComponent::SetRandomAttackType()
 {
-	NextAttackType = FMath::RandRange(0, AttackTypeAttributes.Num() - 1);
+	NextAttackType = FMath::RandRange(0, AttackPatterns.Num() - 1);
 	if (bShouldFixAttackType)
 	{
 		NextAttackType = FixedAttackType;
 	}
-	if (AttackTypeAttributes.IsValidIndex(NextAttackType))
+	if (AttackPatterns.IsValidIndex(NextAttackType))
 	{
-		NextAcceptance = AttackTypeAttributes[NextAttackType].MinimumDistance;
-		NextWaitTime = AttackTypeAttributes[NextAttackType].WaitTime;
-		NextAnimMontage = AttackTypeAttributes[NextAttackType].AttackAnim;
+		NextAcceptance = AttackPatterns[NextAttackType].MinimumDistance;
+		NextWaitTime = AttackPatterns[NextAttackType].WaitTime;
+		NextAnimMontage = AttackPatterns[NextAttackType].AttackAnim;
 	}
 	else
 	{

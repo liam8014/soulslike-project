@@ -87,9 +87,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "VFX")
 	UParticleSystem *ImpactParticle;
 
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	UParticleSystem *GuardImpactVFX;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	UParticleSystem *ParryImpactVFX;
+
 	/* 전투 (피격)*/
-	EHitResult
-	Hit(float damage, float dist, EAttackDirection ad); // 피격
+	EHitResult Hit(const FGameplayHitInfo &HitInfo); // 피격
 
 	/* 카메라 및 포커싱 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")

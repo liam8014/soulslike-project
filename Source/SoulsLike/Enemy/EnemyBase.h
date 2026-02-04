@@ -8,6 +8,7 @@
 #include "AttributeComponent.h"
 #include "SoulsLike/SoulsLikesTypes.h"
 #include "Sound/SoundBase.h"
+#include "SoulsLike/EnemyDataAsset.h"
 #include "EnemyBase.generated.h"
 DECLARE_MULTICAST_DELEGATE(FOnDie);
 struct FTimerHandle;
@@ -20,9 +21,7 @@ public:
 	FOnDie OnDie;
 
 protected:
-	void
-	HandleMeshJitter();
-
+	void HandleMeshJitter();
 	void RestoreMeshPosition();
 
 private:
@@ -67,15 +66,15 @@ protected:
 	UFUNCTION()
 	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(VisibleAnywhere, Category = "Animation")
 	UAnimMontage *StunMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(VisibleAnywhere, Category = "Animation")
 	UAnimMontage *DieMontage;
 
 	bool PlayAttackMontage();
 
-	UPROPERTY(EditAnywhere, Category = "SFX")
+	UPROPERTY(VisibleAnywhere, Category = "SFX")
 	USoundBase *HitSFX;
 
 	UPROPERTY()
@@ -85,7 +84,7 @@ protected:
 
 	float CurrentDissolveValue = 1.1f;
 
-	UPROPERTY(EditAnywhere, Category = "VFX")
+	UPROPERTY(VisibleAnywhere, Category = "VFX")
 	float DissolveSpeed = 0.5f;
 
 	void StartDissolveEffect();
@@ -102,4 +101,12 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
+
+protected:
+	void InitComponents(); // 컴포넌트 연결
+	void SetupBindings();  // 델리게이트 연결
+	void InitStats();	   // 데이터 에셋 적용
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
+	UEnemyDataAsset *EnemyData;
 };

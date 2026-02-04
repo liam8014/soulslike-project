@@ -36,6 +36,34 @@ enum class EHitResult : uint8
 };
 
 USTRUCT(BlueprintType)
+struct FGameplayHitInfo
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(BlueprintReadWrite)
+	float DamageAmount = 0.0f;
+
+	UPROPERTY(BlueprintReadWrite)
+	float KnockBackDistance = 0.0f;
+
+	UPROPERTY(BlueprintReadWrite)
+	EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+
+	UPROPERTY(BlueprintReadWrite)
+	FVector HitLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite)
+	FVector ImpactNormal = FVector::UpVector;
+
+	UPROPERTY(BlueprintReadWrite)
+	AActor *DamageCauser = nullptr;
+
+	UPROPERTY(BlueprintReadWrite)
+	bool bCanBlock = true;
+};
+
+USTRUCT(BlueprintType)
 struct FAttackTypeAttribute
 {
 	GENERATED_BODY()

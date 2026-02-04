@@ -2,6 +2,7 @@
 
 #include "AOEExplosion.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/CapsuleComponent.h"
 #include "Particles/ParticleSystem.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
@@ -72,9 +73,9 @@ void AAOEExplosion::AttackTrace()
 
 	if (bHasOverlap)
 	{
-		for (const FOverlapResult &Result : OverlapResults)
+		for (const FOverlapResult &HitResult : OverlapResults)
 		{
-			AActor *OverlappedActor = Result.GetActor();
+			AActor *OverlappedActor = HitResult.GetActor();
 			if (ProcessedActors.Contains(OverlappedActor))
 				continue;
 			else
@@ -127,7 +128,28 @@ void AAOEExplosion::AttackTrace()
 						}
 					}
 
-					PlayerChar->Hit(DamageAmount, 0, HitDir);
+					FVector ExplosionCenter = this->GetActorLocation();
+					FVector TargetLocation = FVector::ZeroVector;
+
+					UCapsuleComponent *TargetCapsule = PlayerChar->GetCapsuleComponent();
+					if (TargetCapsule)
+					{
+						TargetCapsule->GetClosestPointOnCollision(ExplosionCenter, TargetLocation);
+					}
+					else
+					{
+						TargetLocation = PlayerChar->GetActorLocation();
+					}
+
+					FGameplayHitInfo HitInfo;
+					HitInfo.DamageAmount = DamageAmount;
+					HitInfo.KnockBackDistance = 0;
+					HitInfo.AttackDirection = HitDir;
+					HitInfo.HitLocation = TargetLocation;
+					HitInfo.ImpactNormal = (ExplosionCenter - TargetLocation).GetSafeNormal();
+					HitInfo.DamageCauser = nullptr;
+					HitInfo.bCanBlock = false;
+					PlayerChar->Hit(HitInfo);
 				}
 			}
 		}

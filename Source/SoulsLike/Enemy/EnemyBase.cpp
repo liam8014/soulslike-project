@@ -12,20 +12,16 @@ void AEnemyBase::PlayMeshJitter(float Intensity, float Duration)
 
 	CurrentJitterIntensity = Intensity;
 
-	// 1. 이미 떨리고 있다면 타이머 초기화 (연타 맞았을 때 갱신)
 	GetWorld()->GetTimerManager().ClearTimer(JitterTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(JitterRestoreTimerHandle);
 
-	// 2. 아주 빠른 간격(0.01초 ~ 0.02초)으로 위치를 바꾸는 타이머 시작
 	GetWorld()->GetTimerManager().SetTimer(
 		JitterTimerHandle,
 		this,
 		&AEnemyBase::HandleMeshJitter,
-		0.015f, // 0.015초마다 흔들림 (60fps 기준 매 프레임)
-		true	// 반복
-	);
+		0.015f,
+		true);
 
-	// 3. Duration 뒤에 멈추는 타이머 설정
 	GetWorld()->GetTimerManager().SetTimer(
 		JitterRestoreTimerHandle,
 		this,
@@ -38,18 +34,14 @@ void AEnemyBase::HandleMeshJitter()
 	if (!GetMesh())
 		return;
 
-	// 랜덤 벡터 생성 (-1 ~ 1 사이의 랜덤 값 * 강도)
 	FVector RandomOffset = FMath::VRand() * CurrentJitterIntensity;
 
-	// 원래 위치 + 랜덤 오프셋 적용
 	GetMesh()->SetRelativeLocation(OriginalMeshLocation + RandomOffset);
 }
 void AEnemyBase::RestoreMeshPosition()
 {
-	// 떨림 타이머 종료
 	GetWorld()->GetTimerManager().ClearTimer(JitterTimerHandle);
 
-	// 메시를 원래 위치로 깔끔하게 복구
 	if (GetMesh())
 	{
 		GetMesh()->SetRelativeLocation(OriginalMeshLocation);
@@ -66,6 +58,13 @@ AEnemyBase::AEnemyBase()
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
+	InitComponents();
+	SetupBindings();
+	InitStats();
+}
+
+void AEnemyBase::InitComponents()
+{
 	if (GetMesh())
 	{
 		OriginalMeshLocation = GetMesh()->GetRelativeLocation();
@@ -89,7 +88,10 @@ void AEnemyBase::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("Attribute Component set failed!"));
 	}
+}
 
+void AEnemyBase::SetupBindings()
+{
 	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
 	{
 		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &AEnemyBase::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
@@ -99,6 +101,37 @@ void AEnemyBase::BeginPlay()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("No AnimInst!"));
+	}
+}
+
+void AEnemyBase::InitStats()
+{
+	if (EnemyData)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Loading Stats from EnemyDataAsset: %s"), *EnemyData->GetName());
+
+		// 1. AttributeComponent 스탯 적용
+		if (AttributeComp)
+		{
+			AttributeComp->InitAttribute(EnemyData->MaxHealth, EnemyData->MaxStamina, EnemyData->StaminaRegenAmount);
+		}
+
+		// 2. CombatComponent 스탯 적용
+		if (CombatComp)
+		{
+			CombatComp->AttackPatterns = EnemyData->AttackPatterns;
+			CombatComp->SetRandomAttackType();
+		}
+
+		// 3. EnemyBase 자체 변수 적용
+		this->HitSFX = EnemyData->HitSFX;
+		this->DieMontage = EnemyData->DieMontage;
+		this->StunMontage = EnemyData->StunMontage;
+		this->DissolveSpeed = EnemyData->DissolveSpeed;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EnemyData is NOT set! Using Default Values."));
 	}
 }
 

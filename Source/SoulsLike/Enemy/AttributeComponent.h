@@ -18,8 +18,13 @@ class SOULSLIKE_API UAttributeComponent : public UActorComponent
 public:
 	// Sets default values for this component's properties
 	UAttributeComponent();
+	void InitAttribute(float Health, float Stamina, float StaminaRegen);
+
 	float GetHealth();
+	void SetHealth(float NewHealth);
+
 	float GetStamina();
+	void SetStamina(float NewStamina);
 
 	void ChangeHealth(float Amount);
 	void ChangeStamina(float Amount);
@@ -47,13 +52,14 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere, Category = "Attributes")
+	UPROPERTY(VisibleAnywhere, Category = "Attributes")
 	float MaxHealth = 100.0f;
-	UPROPERTY(EditAnywhere, Category = "Attributes")
+
+	UPROPERTY(VisibleAnywhere, Category = "Attributes")
 	float MaxStamina = 100.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Attributes")
-	float StaminaRegenAmount = 10.0f;
+	UPROPERTY(VisibleAnywhere, Category = "Attributes")
+	float StaminaRegenAmount = 1.0f;
 
 	float CurrentHealth;
 	float CurrentStamina;
