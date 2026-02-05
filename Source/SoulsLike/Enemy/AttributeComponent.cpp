@@ -115,7 +115,8 @@ void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 	if (CurrentStamina < MaxStamina)
 	{
-		CurrentStamina = FMath::Clamp(CurrentStamina + StaminaRegenAmount, CurrentStamina, MaxStamina);
+		ChangeStamina(StaminaRegenAmount);
+		// CurrentStamina = FMath::Clamp(CurrentStamina + StaminaRegenAmount, CurrentStamina, MaxStamina);
 	}
 }
 

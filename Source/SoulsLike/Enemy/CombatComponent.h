@@ -56,6 +56,10 @@ public:
 	UPROPERTY()
 	UAnimMontage *NextAnimMontage = nullptr;
 
+	// --- [VFX 에셋] ---
+	UPROPERTY(VisibleAnywhere, Category = "VFX")
+	UParticleSystem *AttackImpactVFX;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -96,8 +100,4 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	int32 FixedAttackType = 0;
-
-	// --- [VFX 에셋] ---
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *HitImpactVFX;
 };

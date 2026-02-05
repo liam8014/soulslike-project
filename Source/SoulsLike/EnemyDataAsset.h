@@ -39,6 +39,9 @@ public:
 	TArray<FAttackTypeAttribute> AttackPatterns;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")
+	UParticleSystem *AttackImpactVFX;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")
 	USoundBase *HitSFX;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")

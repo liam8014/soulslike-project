@@ -687,7 +687,7 @@ void APlayerCharacter::HeavyAttack()
 		return;
 	}
 	ResetHitCharacters();
-	if (HeavyAttackMontage)
+	if (HeavyAttackMontage && Stamina >= StaminaHeavyAttackCost)
 	{
 		bIsAttacking = true;
 		bCanAttack = false;

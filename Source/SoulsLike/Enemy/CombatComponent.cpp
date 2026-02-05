@@ -143,7 +143,7 @@ void UCombatComponent::SpawnImpactVFX(const FHitResult &Hit, EHitResult HitType)
 	{
 		UGameplayStatics::SpawnEmitterAtLocation(
 			GetWorld(),
-			HitImpactVFX,
+			AttackImpactVFX,
 			Hit.ImpactPoint,
 			Hit.ImpactNormal.Rotation(),
 			true);

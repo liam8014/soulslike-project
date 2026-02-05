@@ -120,6 +120,7 @@ void AEnemyBase::InitStats()
 		if (CombatComp)
 		{
 			CombatComp->AttackPatterns = EnemyData->AttackPatterns;
+			CombatComp->AttackImpactVFX = EnemyData->AttackImpactVFX;
 			CombatComp->SetRandomAttackType();
 		}
 
