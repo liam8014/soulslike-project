@@ -42,25 +42,25 @@ struct FGameplayHitInfo
 
 public:
 	UPROPERTY(BlueprintReadWrite)
-	float DamageAmount = 0.0f;
+	float DamageAmount; // 데미지
 
 	UPROPERTY(BlueprintReadWrite)
-	float KnockBackDistance = 0.0f;
+	float KnockBackDistance; // 넉백 거리
 
 	UPROPERTY(BlueprintReadWrite)
-	EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
+	EAttackDirection AttackDirection = EAttackDirection::AD_Forward; // 공격 방향
 
 	UPROPERTY(BlueprintReadWrite)
-	FVector HitLocation = FVector::ZeroVector;
+	FVector HitLocation = FVector::ZeroVector; // 타격 지점 (VFX)
 
 	UPROPERTY(BlueprintReadWrite)
-	FVector ImpactNormal = FVector::UpVector;
+	FVector ImpactNormal = FVector::UpVector; // 타격 지점의 법선 벡터 (VFX 회전값 계산용)
 
 	UPROPERTY(BlueprintReadWrite)
-	AActor *DamageCauser = nullptr;
+	AActor *DamageCauser = nullptr; // 공격자
 
 	UPROPERTY(BlueprintReadWrite)
-	bool bCanBlock = true;
+	bool bCanBlock = true; // 막을 수 있는 공격인지
 };
 
 USTRUCT(BlueprintType)

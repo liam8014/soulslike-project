@@ -1071,7 +1071,7 @@ void APlayerCharacter::CounterAttack()
 	FVector LaunchDir = GetActorForwardVector();
 	LaunchDir = LaunchDir.RotateAngleAxis(-10.0f, FVector::UpVector);
 
-	FVector FinalVelocity = (LaunchDir * 4000.0f) + FVector(0, 0, 150.0f);
+	FVector FinalVelocity = (LaunchDir * 2000.0f) + FVector(0, 0, 150.0f);
 
 	LaunchCharacter(FinalVelocity, true, true);
 
