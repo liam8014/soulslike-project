@@ -30,6 +30,8 @@
 #include "Containers/Ticker.h" // FTSTicker, FTickerDelegate
 #include "SoulsLike/UI/StatusBar.h"
 #include "SoulsLike/Enemy/EnemyBase.h"
+#include "SoulsLike/Component/AttributeComponent.h"
+#include "SoulsLike/Character/PlayerAttributeComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -64,6 +66,8 @@ void APlayerCharacter::ChangeFOV(float FOV)
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	InitComponents();
+	SetupBindings();
 	PlayerController = Cast<APlayerController>(GetController());
 	if (PlayerController)
 	{
@@ -93,11 +97,6 @@ void APlayerCharacter::BeginPlay()
 	CameraBoom = FindComponentByClass<USpringArmComponent>(); // 카메라 스프링 암 컴포넌트 찾기
 	FollowCamera = FindComponentByClass<UCameraComponent>();  // 카메라 컴포넌트 찾기
 
-	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
-	{
-		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &APlayerCharacter::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
-		AnimInst->OnPlayMontageNotifyEnd.AddDynamic(this, &APlayerCharacter::OnNotifyEnd);	   // NotifyState 종료(NotifyEnd) 바인딩
-	}
 	MoveComp = GetCharacterMovement();
 	if (MoveComp)
 	{
@@ -134,8 +133,6 @@ void APlayerCharacter::BeginPlay()
 		if (StatusBar)
 		{
 			StatusBar->AddToViewport();
-			AddHealth(0.0f);
-			AddStamina(0.0f);
 		}
 	}
 
@@ -147,6 +144,33 @@ void APlayerCharacter::BeginPlay()
 	{
 		DefaultFOV = FollowCamera->FieldOfView;
 		TargetFOV = DefaultFOV; // 초기 목표는 기본값
+	}
+}
+void APlayerCharacter::InitComponents()
+{
+	PlayerAttributeComp = FindComponentByClass<UPlayerAttributeComponent>();
+	if (PlayerAttributeComp)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Attribute Component is successfully set"));
+		PlayerAttributeComp->ChangeHealth(0.0f);
+		PlayerAttributeComp->ChangeStamina(0.0f);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Attribute Component set failed!"));
+	}
+}
+void APlayerCharacter::SetupBindings()
+{
+	if (UAnimInstance *AnimInst = GetMesh()->GetAnimInstance())
+	{
+		AnimInst->OnPlayMontageNotifyBegin.AddDynamic(this, &APlayerCharacter::OnNotifyBegin); // NotifyState 시작(NotifyBegin) 바인딩
+		AnimInst->OnPlayMontageNotifyEnd.AddDynamic(this, &APlayerCharacter::OnNotifyEnd);	   // NotifyState 종료(NotifyEnd) 바인딩
+	}
+	if (PlayerAttributeComp)
+	{
+		PlayerAttributeComp->OnHealthChanged.AddDynamic(this, &APlayerCharacter::OnHealthChangedReceived);
+		PlayerAttributeComp->OnStaminaChanged.AddDynamic(this, &APlayerCharacter::OnStaminaChangedReceived);
 	}
 }
 // Move 입력 시 호출되는 함수
@@ -427,20 +451,25 @@ void APlayerCharacter::Tick(float DeltaTime)
 		ChangeMovement(EMovementState::MS_Idle);
 	}
 
-	if (bIsRunning)
+	if (bIsRunning && CanMove())
 	{
-		AddStamina(-StaminaRunCost);
+		PlayerAttributeComp->DisableRegenStamina();
+		PlayerAttributeComp->ChangeStamina(-PlayerAttributeComp->GetSprintStaminaCost());
 	}
 	else
 	{
 
-		if ((MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Moving) && Stamina < MaxStamina && !bIsAttacking)
+		if ((MovementState == EMovementState::MS_Idle || MovementState == EMovementState::MS_Moving) && !bIsAttacking)
 		{
-			AddStamina(bIsGuarding ? StaminaRegenAmount * 0.5 : StaminaRegenAmount);
+			if (PlayerAttributeComp->GetStamina() < PlayerAttributeComp->MaxStamina)
+			{
+				// float SRA = PlayerAttributeComp->GetStaminaRegenAmount();
+				// PlayerAttributeComp->ChangeStamina(bIsGuarding ? SRA * 0.5 : SRA);
+			}
 		}
 	}
 
-	if (CanMove() && bAutoAttack && !bIsAttacking)
+	if (CanMove() && bAutoAttack)
 	{
 		LightAttack();
 	}
@@ -565,10 +594,10 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 	if (NotifyName == TEXT("ComboWindow"))
 	{
 		bCanCombo = false;
-		if (bAutoAttack) // 자동 공격 더미용 스태미나 회복
-		{
-			AddStamina(StaminaLightAttackCost);
-		}
+		// if (bAutoAttack) // 자동 공격 더미용 스태미나 회복
+		// {
+		// 	PlayerAttributeComp->ChangeStamina(PlayerAttributeComp->LightAttackStaminaCost);
+		// }
 		if ((bWantCombo || bAutoAttack) && bCanAttack)
 		{
 			bWantCombo = false;
@@ -599,6 +628,8 @@ void APlayerCharacter::OnNotifyEnd(FName NotifyName, const FBranchingPointNotify
 }
 void APlayerCharacter::Attack()
 {
+	ResetHitCharacters();
+	PlayerAttributeComp->DisableRegenStamina();
 	if (bIsGuarding)
 	{
 		Parry();
@@ -620,7 +651,6 @@ void APlayerCharacter::Attack()
 			LightAttack();
 		}
 	}
-	ResetHitCharacters();
 }
 
 void APlayerCharacter::LightAttack()
@@ -629,15 +659,11 @@ void APlayerCharacter::LightAttack()
 	{
 		return;
 	}
-	if (GetStamina() < StaminaLightAttackCost)
+	if (!PlayerAttributeComp->TryConsumeStamina(PlayerAttributeComp->GetLightAttackStaminaCost()))
 	{
-		CurrentAttackCombo = 0;
-		bIsAttacking = false;
-		ChangeMovement(EMovementState::MS_Idle);
+		ResetMovement();
 		return;
 	}
-
-	AddStamina(-StaminaLightAttackCost);
 
 	bIsAttacking = true;
 	bCanCombo = false;
@@ -682,17 +708,17 @@ void APlayerCharacter::LightAttack()
 
 void APlayerCharacter::HeavyAttack()
 {
+	PlayerAttributeComp->DisableRegenStamina();
 	if (!bCanAttack || bIsAttacking)
 	{
 		return;
 	}
 	ResetHitCharacters();
-	if (HeavyAttackMontage && Stamina >= StaminaHeavyAttackCost)
+	if (HeavyAttackMontage && PlayerAttributeComp->TryConsumeStamina(PlayerAttributeComp->GetHeavyAttackStaminaCost()))
 	{
 		bIsAttacking = true;
 		bCanAttack = false;
 		ChangeMovement(EMovementState::MS_Attacking);
-		AddStamina(-StaminaHeavyAttackCost);
 		SetAttackAttribute(3.0f, 3.5f, EAttackDirection::AD_Forward, HeavyAttackImpactVFX);
 		PlayAnimMontage(HeavyAttackMontage);
 
@@ -770,14 +796,14 @@ void APlayerCharacter::AttackTrace()
 	if (!SwordMeshComponent) // SwordMeshComponent가 valid한지 확인
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] SwordMeshComponent is null"));
-		bIsAttacking = false;
+		ResetMovement();
 		return;
 	}
 	UWorld *World = GetWorld();
 	if (!World)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[AttackTrace] GetWorld() returned null"));
-		bIsAttacking = false;
+		ResetMovement();
 		return;
 	}
 
@@ -828,7 +854,8 @@ void APlayerCharacter::AttackTrace()
 		{
 			// EAttackDirection AttackDirection = EAttackDirection::AD_Forward;
 			ProcessedActors.Add(HitActor);
-			HitEnemy->Hit(AttackPower * DamageMultiplier, AttackPower * StaminaMultiplier);
+			float BasePower = PlayerAttributeComp->GetBaseAttackPower();
+			HitEnemy->Hit(BasePower * DamageMultiplier, BasePower * StaminaMultiplier);
 
 			FRotator VFXRotation = FRotator::ZeroRotator;
 			FRotator ActorRot = GetActorRotation();
@@ -875,26 +902,20 @@ void APlayerCharacter::AttackTrace()
 }
 void APlayerCharacter::Parry()
 {
-	if (!bIsHitting && GetStamina() >= 20.0 && ParryMontage)
+	if (!bIsHitting && ParryMontage)
 	{
-		AddStamina(-20.0f);
-		bIsGuarding = false;
-		PlayAnimMontage(ParryMontage, 1.0f);
+		if (PlayerAttributeComp->TryConsumeStamina(PlayerAttributeComp->GetParryStaminaCost()))
+		{
+			bIsGuarding = false;
+			PlayAnimMontage(ParryMontage, 1.0f);
+		}
 	}
 	else
 	{
 		return;
 	}
 }
-void APlayerCharacter::ReactBlocked()
-{
-	CurrentAttackCombo = 0;
-	PlayAnimMontage(BlockedMontage, 1.0f);
-	AddStamina(-10.0f);
-	bCanAttack = false;
-	bIsAttacking = false;
-	bCanCombo = false;
-}
+
 void APlayerCharacter::ReactStunned()
 {
 	bIsAttacking = false;
@@ -922,7 +943,7 @@ EHitResult APlayerCharacter::Hit(const FGameplayHitInfo &HitInfo)
 	{
 		res = EHitResult::HR_Parry;
 		LaunchCharacter(KnockBackVector * 0.5, true, true);
-		AddStamina(20.0f);
+		PlayerAttributeComp->ChangeStamina(PlayerAttributeComp->GetParryStaminaReturn());
 		if (ParryActivationMontage)
 		{
 			PlayAnimMontage(ParryActivationMontage);
@@ -933,18 +954,18 @@ EHitResult APlayerCharacter::Hit(const FGameplayHitInfo &HitInfo)
 		bIsHitting = true;
 		if (HitInfo.bCanBlock && bIsGuarding)
 		{
-			AddHealth(-HitInfo.DamageAmount * 0.3);
-			AddStamina(-HitInfo.DamageAmount * 1.5);
+			PlayerAttributeComp->ChangeHealth(-HitInfo.DamageAmount * (1 - PlayerAttributeComp->GetGuardRate()));
+			PlayerAttributeComp->ChangeStamina(-HitInfo.DamageAmount * PlayerAttributeComp->GetGuardStaminaCostRate());
 			res = EHitResult::HR_Guard;
 		}
 		else
 		{
 			bIsGuarding = false;
-			AddHealth(-HitInfo.DamageAmount);
+			PlayerAttributeComp->ChangeHealth(-HitInfo.DamageAmount);
 			res = EHitResult::HR_CleanHit;
 		}
 		LaunchCharacter(KnockBackVector, true, true);
-		if (GetStamina() > 0)
+		if (PlayerAttributeComp->GetStamina() > 0)
 		{
 			PlayHitMontage(HitInfo.AttackDirection);
 		}
@@ -1014,12 +1035,14 @@ void APlayerCharacter::Jump()
 
 void APlayerCharacter::Run()
 {
-	if (!bIsRunning && GetStamina() >= StaminaRunStartCost && CanMove())
+	if (!bIsRunning && CanMove())
 	{
-		AddStamina(-StaminaRunStartCost);
-		bIsGuarding = false;
-		bIsRunning = true;
-		MoveComp->MaxWalkSpeed = RunSpeed;
+		if (PlayerAttributeComp->TryConsumeStamina(PlayerAttributeComp->GetSprintActivationCost()))
+		{
+			bIsGuarding = false;
+			bIsRunning = true;
+			MoveComp->MaxWalkSpeed = RunSpeed;
+		}
 	}
 }
 
@@ -1027,6 +1050,7 @@ void APlayerCharacter::StopRunning()
 {
 	if (bIsRunning)
 	{
+		PlayerAttributeComp->EnableRegenStamina();
 		bIsRunning = false;
 		bIsDodging = false;
 		MoveComp->MaxWalkSpeed = WalkSpeed;
@@ -1035,11 +1059,17 @@ void APlayerCharacter::StopRunning()
 
 void APlayerCharacter::Dodge()
 {
-	if (!bIsFocusing || bIsDodging || !CanMove() || GetStamina() < StaminaDodgeCost)
+	if (!bIsFocusing || bIsDodging || !CanMove())
+	{
 		return;
+	}
+	if (!PlayerAttributeComp->TryConsumeStamina(PlayerAttributeComp->GetSprintStaminaCost()))
+	{
+		return;
+	}
 	bWantCombo = false;
 	bCanBeHit = false;
-	AddStamina(-StaminaDodgeCost);
+
 	ChangeMovement(EMovementState::MS_Dodging);
 	bIsDodging = true;
 	if (bIsCounterTiming)
@@ -1111,6 +1141,8 @@ void APlayerCharacter::ResetMovement()
 	bIsSweeping = false;
 	bIsHitting = false;
 	CurrentAttackCombo = 0;
+
+	PlayerAttributeComp->EnableRegenStamina();
 }
 void APlayerCharacter::ChangeMovement(EMovementState ms)
 {
@@ -1133,9 +1165,10 @@ void APlayerCharacter::ChangeMovement(EMovementState ms)
 }
 void APlayerCharacter::Guard()
 {
-	if (!bIsGuarding && GetStamina() > 5 && !bIsParrying)
+	if (!bIsGuarding && PlayerAttributeComp->GetStamina() >= 1 && !bIsParrying)
 	{
 		bIsGuarding = true;
+		PlayerAttributeComp->SetStaminaRegenMultiplier(PlayerAttributeComp->GetGuardStaminaRegenMultiplier());
 		MoveComp->MaxWalkSpeed = WalkSpeed * 0.7;
 	}
 }
@@ -1145,6 +1178,7 @@ void APlayerCharacter::StopGuarding()
 	if (bIsGuarding)
 	{
 		bIsGuarding = false;
+		PlayerAttributeComp->SetStaminaRegenMultiplier(1.0f);
 		MoveComp->MaxWalkSpeed = WalkSpeed;
 	}
 }
@@ -1177,49 +1211,31 @@ void APlayerCharacter::ShowUI()
 	}
 }
 
-void APlayerCharacter::AddHealth(float Amount)
+void APlayerCharacter::OnHealthChangedReceived(float _CurrentHealth, float _MaxHealth)
 {
-	if (Health + Amount < 0)
+	if (StatusBar)
+	{
+		StatusBar->SetHealthPercent(_CurrentHealth / _MaxHealth);
+	}
+	if (_CurrentHealth <= 0)
 	{
 		Die();
-		Health = 0;
 	}
-	else
+}
+
+void APlayerCharacter::OnStaminaChangedReceived(float _CurrentStamina, float _MaxStamina)
+{
+	if (StatusBar)
 	{
-		if (Health > MaxHealth)
-		{
-			Health = MaxHealth;
-		}
+		StatusBar->SetStaminaPercent(_CurrentStamina / _MaxStamina);
 	}
-	Health += Amount;
-	StatusBar->SetHealthPercent(Health / MaxHealth);
-}
-float APlayerCharacter::GetHealth()
-{
-	return Health;
-}
-void APlayerCharacter::AddStamina(float Amount)
-{
-	if (Stamina + Amount < 0)
+	if (_CurrentStamina <= 0)
 	{
-		Stamina = 0;
 		StopGuarding();
 		StopRunning();
 	}
-	else
-	{
-		Stamina += Amount;
-		if (Stamina > MaxStamina)
-		{
-			Stamina = MaxStamina;
-		}
-	}
-	StatusBar->SetStaminaPercent(Stamina / MaxStamina);
 }
-float APlayerCharacter::GetStamina()
-{
-	return Stamina;
-}
+
 void APlayerCharacter::Die()
 {
 	UE_LOG(LogTemp, Warning, TEXT("%s is Dead."), *GetName());

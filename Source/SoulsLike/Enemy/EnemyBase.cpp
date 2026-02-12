@@ -4,7 +4,8 @@
 #include "AIController.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "CombatComponent.h"
+#include "SoulsLike/UI/BossHealthBar.h"
+
 void AEnemyBase::PlayMeshJitter(float Intensity, float Duration)
 {
 	if (!GetMesh())
@@ -29,6 +30,21 @@ void AEnemyBase::PlayMeshJitter(float Intensity, float Duration)
 		Duration,
 		false);
 }
+void AEnemyBase::OnHealthChangedReceived(float CurrentHealth, float MaxHealth)
+{
+	BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
+	if (CurrentHealth <= 0.0)
+	{
+		Die();
+	}
+}
+void AEnemyBase::OnStaminaChangedReceived(float CurrentStamina, float MaxStamina)
+{
+	if (CurrentStamina <= 0.0)
+	{
+		Stun();
+	}
+}
 void AEnemyBase::HandleMeshJitter()
 {
 	if (!GetMesh())
@@ -52,6 +68,14 @@ AEnemyBase::AEnemyBase()
 {
 	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AEnemyBase::HideHealthBar()
+{
+	if (BossHealthBar)
+	{
+		BossHealthBar->RemoveFromParent();
+	}
 }
 
 // Called when the game starts or when spawned
@@ -88,6 +112,14 @@ void AEnemyBase::InitComponents()
 	{
 		UE_LOG(LogTemp, Error, TEXT("Attribute Component set failed!"));
 	}
+	if (BossHealthBarClass && !bIsSpawnable)
+	{
+		BossHealthBar = CreateWidget<UBossHealthBar>(GetWorld(), BossHealthBarClass);
+		if (BossHealthBar)
+		{
+			BossHealthBar->AddToViewport();
+		}
+	}
 }
 
 void AEnemyBase::SetupBindings()
@@ -101,6 +133,15 @@ void AEnemyBase::SetupBindings()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("No AnimInst!"));
+	}
+	if (AttributeComp)
+	{
+		AttributeComp->OnHealthChanged.AddDynamic(this, &AEnemyBase::OnHealthChangedReceived);
+		AttributeComp->OnStaminaChanged.AddDynamic(this, &AEnemyBase::OnStaminaChangedReceived);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("No Attribute Component!"));
 	}
 }
 
@@ -279,7 +320,7 @@ void AEnemyBase::Die()
 	bCanMove = false;
 	bIsDead = true;
 	StartDissolveEffect();
-	AttributeComp->HideHealthBar();
+	HideHealthBar();
 	if (DieMontage)
 	{
 		PlayAnimMontage(DieMontage, 1.0f);
@@ -297,7 +338,8 @@ void AEnemyBase::Stun()
 	}
 	bCanMove = false;
 	bIsStunned = true;
-	AttributeComp->DisableChangeStaimna();
+	AttributeComp->SetStamina(AttributeComp->MaxStamina);
+	AttributeComp->DisableChangeStamina();
 }
 
 bool AEnemyBase::Attack()

@@ -5,8 +5,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "AttributeComponent.generated.h"
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedDelegate, float, CurrentHealth, float, MaxHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, CurrentHealth, float, MaxHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStaminaChanged, float, CurrentStamina, float, MaxStamina);
 
 class AEnemyBase;
 class UBossHealthBar;
@@ -26,6 +26,11 @@ public:
 	float GetStamina();
 	void SetStamina(float NewStamina);
 
+	void SetStaminaRegenMultiplier(float NewRegenMultiplier);
+	float GetStaminaRegenAmount();
+
+	float GetBaseAttackPower();
+
 	void ChangeHealth(float Amount);
 	void ChangeStamina(float Amount);
 
@@ -33,39 +38,41 @@ public:
 	void DisableChangeHeatlh();
 
 	void EnableChangeStamina();
-	void DisableChangeStaimna();
+	void DisableChangeStamina();
 
-	AEnemyBase *Owner;
+	void EnableRegenStamina();
+	void DisableRegenStamina();
 
-	UPROPERTY(BlueprintAssignable, Category = "Events")
-	FOnHealthChangedDelegate OnHealthChanged;
+	ACharacter *Owner;
 
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<class UBossHealthBar> BossHealthBarClass;
-
-	UPROPERTY()
-	UBossHealthBar *BossHealthBar;
-
-	void HideHealthBar();
+	FOnHealthChanged OnHealthChanged;
+	FOnStaminaChanged OnStaminaChanged;
 
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	UPROPERTY(VisibleAnywhere, Category = "Attributes")
-	float MaxHealth = 100.0f;
+	float StaminaRegenMultiplier = 1.0f;
 
 	UPROPERTY(VisibleAnywhere, Category = "Attributes")
-	float MaxStamina = 100.0f;
+	float StaminaRegenAmount = 0.2f;
 
-	UPROPERTY(VisibleAnywhere, Category = "Attributes")
-	float StaminaRegenAmount = 1.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes")
+	float BaseAttackPower = 10.0f;
 
 	float CurrentHealth;
 	float CurrentStamina;
 
 	bool bCanChangeHealth = true;
 	bool bCanChangeStamina = true;
+	bool bCanRegenStamina = true;
+
+public:
+	UPROPERTY(VisibleAnywhere, Category = "Attributes")
+	float MaxHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, Category = "Attributes")
+	float MaxStamina = 100.0f;
 
 public:
 	// Called every frame

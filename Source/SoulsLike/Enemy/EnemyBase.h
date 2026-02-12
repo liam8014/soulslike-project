@@ -5,13 +5,15 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "CombatComponent.h"
-#include "AttributeComponent.h"
+#include "SoulsLike/Component/AttributeComponent.h"
 #include "SoulsLike/SoulsLikesTypes.h"
 #include "Sound/SoundBase.h"
-#include "SoulsLike/EnemyDataAsset.h"
+#include "SoulsLike/Enemy/EnemyDataAsset.h"
 #include "EnemyBase.generated.h"
 DECLARE_MULTICAST_DELEGATE(FOnDie);
+
 struct FTimerHandle;
+class UBossHealthBar;
 UCLASS()
 class SOULSLIKE_API AEnemyBase : public ACharacter
 {
@@ -19,6 +21,12 @@ class SOULSLIKE_API AEnemyBase : public ACharacter
 public:
 	void PlayMeshJitter(float Intensity = 5.0f, float Duration = 0.15f);
 	FOnDie OnDie;
+
+	UFUNCTION()
+	void OnHealthChangedReceived(float CurrentHealth, float MaxHealth);
+
+	UFUNCTION()
+	void OnStaminaChangedReceived(float CurrentStamina, float MaxStamina);
 
 protected:
 	void HandleMeshJitter();
@@ -45,8 +53,13 @@ public:
 	UPROPERTY(EditAnywhere)
 	bool bIsSpawnable = false;
 
-	UPROPERTY(BlueprintAssignable, Category = "Events")
-	FOnHealthChangedDelegate OnHealthChanged;
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UBossHealthBar> BossHealthBarClass;
+
+	UPROPERTY()
+	UBossHealthBar *BossHealthBar;
+
+	void HideHealthBar();
 
 protected:
 	// Called when the game starts or when spawned

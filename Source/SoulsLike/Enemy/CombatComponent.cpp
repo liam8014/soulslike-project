@@ -3,6 +3,7 @@
 #include "CombatComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
+#include "SoulsLike/Component/AttributeComponent.h"
 #include "EnemyBase.h"
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -33,6 +34,7 @@ void UCombatComponent::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Failed to set Owner"));
 	}
 	SetRandomAttackType();
+	OwnerAttribute = GetOwner()->FindComponentByClass<UAttributeComponent>();
 }
 
 void UCombatComponent::AttackTrace()
@@ -119,7 +121,7 @@ void UCombatComponent::ProcessHit(const FHitResult &HitResult)
 	}
 
 	FGameplayHitInfo HitInfo;
-	HitInfo.DamageAmount = DamageMultiplier * AttackPower;
+	HitInfo.DamageAmount = DamageMultiplier * OwnerAttribute->GetBaseAttackPower();
 	HitInfo.KnockBackDistance = KnockBackDistance;
 	HitInfo.AttackDirection = AttackDirection;
 	HitInfo.HitLocation = HitResult.ImpactPoint;

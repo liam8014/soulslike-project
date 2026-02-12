@@ -17,6 +17,8 @@ class UCharacterMovementComponent;
 class UStatusBar;
 struct FInputActionValue;
 
+class UPlayerAttributeComponent;
+
 template <typename TEnum>
 static FText EnumDisplayName(TEnum Value)
 {
@@ -47,6 +49,16 @@ public:
 	UPROPERTY()
 	UUserWidget *FocusIndicatorWidget;
 
+	/* 어트리뷰트 */
+	UFUNCTION()
+	void OnHealthChangedReceived(float CurrentHealth, float MaxHealth);
+
+	UFUNCTION()
+	void OnStaminaChangedReceived(float CurrentStamina, float MaxStamina);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attribute")
+	UPlayerAttributeComponent *PlayerAttributeComp;
+
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class UStatusBar> StatusBarClass;
 
@@ -55,12 +67,6 @@ public:
 
 	void HideUI();
 	void ShowUI();
-
-	/* 체력 및 스테미나 */
-	void AddHealth(float Amount);
-	void AddStamina(float Amount);
-	float GetHealth();
-	float GetStamina();
 
 	/* 전투 (공격)*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
@@ -129,21 +135,11 @@ protected: // camera
 	void ChangeFOV(float FOV);
 
 protected:
-	float MaxHealth = 100.0f;
-	float Health = MaxHealth;
-	float MaxStamina = 100.0f;
-	float Stamina = MaxStamina;
-	const float StaminaRegenAmount = 0.2f; // 스테미나 기본 회복량
-
-	const float StaminaLightAttackCost = 6.0f; // 스테미나 기본 공격 소모량
-	const float StaminaRunStartCost = 2.5f;	   // 달리기 시작 소모량
-	const float StaminaRunCost = 0.08f;		   // 달리기 소모량
-	const float StaminaDodgeCost = 23.0f;	   // 회피 소모량
-
-	const float StaminaHeavyAttackCost = 13.0f; // 스테미나 강 공격 소모량
-
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	void InitComponents();
+	void SetupBindings();
 
 	APlayerController *PlayerController; // 플레이어 컨트롤러
 
@@ -215,8 +211,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float LightAttackRange = 120.0f; // 기본 공격 범위
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	float AttackPower = 10.0f;
 
 	float DamageMultiplier = 1.0f;
 	float StaminaMultiplier = 1.0f;
@@ -311,7 +305,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bIsParrying = false;
 
-	void ReactBlocked();
 	void Parry(); // 공격을 튕겨내는 패리를 한다
 	void Guard();
 	void ReactStunned();

@@ -2,7 +2,7 @@
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
-#include "EnemyBase.h" // 보스 헤더
+#include "EnemyBase.h"
 #include "SoulsLike/Character/PlayerCharacter.h"
 #include "Components/AudioComponent.h"
 #include "Blueprint/UserWidget.h"

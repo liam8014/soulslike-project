@@ -1,8 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "AttributeComponent.h"
-#include "SoulsLike/UI/BossHealthBar.h"
-#include "EnemyBase.h"
+#include "SoulsLike/Enemy/EnemyBase.h"
 
 // Sets default values for this component's properties
 UAttributeComponent::UAttributeComponent()
@@ -17,9 +16,9 @@ UAttributeComponent::UAttributeComponent()
 void UAttributeComponent::InitAttribute(float Health, float Stamina, float StaminaRegen)
 {
 	MaxHealth = Health;
-	CurrentHealth = MaxHealth;
+	SetHealth(MaxHealth);
 	MaxStamina = Stamina;
-	CurrentStamina = MaxStamina;
+	SetStamina(MaxStamina);
 	StaminaRegenAmount = StaminaRegen;
 }
 
@@ -36,23 +35,45 @@ float UAttributeComponent::GetStamina()
 void UAttributeComponent::SetHealth(float NewHealth)
 {
 	CurrentHealth = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
+	if (OnHealthChanged.IsBound())
+	{
+		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+	}
 }
 
 void UAttributeComponent::SetStamina(float NewStamina)
 {
 	CurrentStamina = FMath::Clamp(NewStamina, 0.0f, MaxStamina);
+	if (OnStaminaChanged.IsBound())
+	{
+		OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
+	}
+}
+
+void UAttributeComponent::SetStaminaRegenMultiplier(float NewRegenMultiplier)
+{
+	StaminaRegenMultiplier = NewRegenMultiplier;
+}
+
+float UAttributeComponent::GetStaminaRegenAmount()
+{
+	return StaminaRegenAmount;
+}
+
+float UAttributeComponent::GetBaseAttackPower()
+{
+	return BaseAttackPower;
 }
 
 void UAttributeComponent::ChangeHealth(float Amount)
 {
 	if (bCanChangeHealth)
 	{
-		CurrentHealth = FMath::Clamp(CurrentHealth + Amount, 0.0f, MaxHealth);
-		BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
-		if (CurrentHealth <= 0)
-		{
-			Owner->Die();
-		}
+		SetHealth(FMath::Clamp(CurrentHealth + Amount, 0.0f, MaxHealth));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("You can't change health now."));
 	}
 }
 
@@ -60,13 +81,7 @@ void UAttributeComponent::ChangeStamina(float Amount)
 {
 	if (bCanChangeStamina)
 	{
-		CurrentStamina = FMath::Clamp(CurrentStamina + Amount, 0.0f, MaxStamina);
-		UE_LOG(LogTemp, Warning, TEXT("Current Stamina : %f"), CurrentStamina);
-		if (CurrentStamina == 0)
-		{
-			Owner->Stun();
-			CurrentStamina = MaxStamina;
-		}
+		SetStamina(FMath::Clamp(CurrentStamina + Amount, 0.0f, MaxStamina));
 	}
 	else
 	{
@@ -74,37 +89,18 @@ void UAttributeComponent::ChangeStamina(float Amount)
 	}
 }
 
-void UAttributeComponent::HideHealthBar()
-{
-	if (BossHealthBar)
-	{
-		BossHealthBar->RemoveFromParent();
-	}
-}
-
 // Called when the game starts
 void UAttributeComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	Owner = Cast<AEnemyBase>(GetOwner());
+	Owner = Cast<ACharacter>(GetOwner());
 	if (Owner == nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to set Owner"));
 		return;
 	}
-
-	CurrentHealth = MaxHealth;
-	CurrentStamina = MaxStamina;
-
-	if (BossHealthBarClass && Owner && !Owner->bIsSpawnable)
-	{
-		BossHealthBar = CreateWidget<UBossHealthBar>(GetWorld(), BossHealthBarClass);
-		if (BossHealthBar)
-		{
-			BossHealthBar->AddToViewport();
-			BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
-		}
-	}
+	SetHealth(MaxHealth);
+	SetStamina(MaxStamina);
 	// ...
 }
 
@@ -113,10 +109,9 @@ void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (CurrentStamina < MaxStamina)
+	if (bCanRegenStamina && CurrentStamina < MaxStamina)
 	{
-		ChangeStamina(StaminaRegenAmount);
-		// CurrentStamina = FMath::Clamp(CurrentStamina + StaminaRegenAmount, CurrentStamina, MaxStamina);
+		ChangeStamina(StaminaRegenAmount * StaminaRegenMultiplier);
 	}
 }
 
@@ -135,7 +130,17 @@ void UAttributeComponent::EnableChangeStamina()
 	bCanChangeStamina = true;
 }
 
-void UAttributeComponent::DisableChangeStaimna()
+void UAttributeComponent::DisableChangeStamina()
 {
 	bCanChangeStamina = false;
+}
+
+void UAttributeComponent::EnableRegenStamina()
+{
+	bCanRegenStamina = true;
+}
+
+void UAttributeComponent::DisableRegenStamina()
+{
+	bCanRegenStamina = false;
 }

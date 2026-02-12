@@ -11,6 +11,7 @@
 
 class UParticleSystem;
 class AEnemyBase;
+class UAttributeComponent;
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SOULSLIKE_API UCombatComponent : public UActorComponent
 {
@@ -35,9 +36,6 @@ public:
 
 	// --- [Data Asset 변수] ---
 public:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | Stats")
-	float AttackPower = 10.0f;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | Stats")
 	float AttackRadius = 100.0f;
 
@@ -79,6 +77,9 @@ private:
 	// --- [내부 멤버 변수] ---
 	UPROPERTY()
 	AEnemyBase *Owner;
+
+	UPROPERTY()
+	UAttributeComponent *OwnerAttribute;
 
 	// 중복 피격 방지
 	TSet<AActor *> ProcessedActors;
