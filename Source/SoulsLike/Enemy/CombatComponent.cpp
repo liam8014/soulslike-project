@@ -34,7 +34,7 @@ void UCombatComponent::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Failed to set Owner"));
 	}
 	SetRandomAttackType();
-	OwnerAttribute = GetOwner()->FindComponentByClass<UAttributeComponent>();
+	OwnerAttrComp = GetOwner()->FindComponentByClass<UAttributeComponent>();
 }
 
 void UCombatComponent::AttackTrace()
@@ -97,7 +97,7 @@ void UCombatComponent::ProcessHit(const FHitResult &HitResult)
 		return;
 
 	APlayerCharacter *Player = Cast<APlayerCharacter>(HitActor);
-	if (!Player || !Player->bCanBeHit)
+	if (!Player || !Player->CanBeHit())
 		return;
 
 	ProcessedActors.Add(HitActor);
@@ -121,7 +121,7 @@ void UCombatComponent::ProcessHit(const FHitResult &HitResult)
 	}
 
 	FGameplayHitInfo HitInfo;
-	HitInfo.DamageAmount = DamageMultiplier * OwnerAttribute->GetBaseAttackPower();
+	HitInfo.DamageAmount = DamageMultiplier * OwnerAttrComp->GetBaseAttackPower();
 	HitInfo.KnockBackDistance = KnockBackDistance;
 	HitInfo.AttackDirection = AttackDirection;
 	HitInfo.HitLocation = HitResult.ImpactPoint;
@@ -196,7 +196,7 @@ void UCombatComponent::AttackBeforeTrace()
 		APlayerCharacter *HitPlayerCharacter = Cast<APlayerCharacter>(Hit.GetActor());
 		if (HitPlayerCharacter)
 		{
-			HitPlayerCharacter->bIsCounterTiming = true;
+			HitPlayerCharacter->EnableCounterAttack();
 		}
 	}
 	if (bDrawDebugShape)

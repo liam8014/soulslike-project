@@ -62,7 +62,7 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	// 메인 스윕 함수 (Tick에서 호출)
+	// 메인 스윕 함수
 	void AttackTrace();
 
 	// 물리 연산 실행
@@ -79,7 +79,7 @@ private:
 	AEnemyBase *Owner;
 
 	UPROPERTY()
-	UAttributeComponent *OwnerAttribute;
+	UAttributeComponent *OwnerAttrComp;
 
 	// 중복 피격 방지
 	TSet<AActor *> ProcessedActors;

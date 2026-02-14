@@ -18,6 +18,7 @@ class UStatusBar;
 struct FInputActionValue;
 
 class UPlayerAttributeComponent;
+class UPlayerCombatComponent;
 
 template <typename TEnum>
 static FText EnumDisplayName(TEnum Value)
@@ -38,8 +39,12 @@ public:
 
 	/* 플레이어 상태 */
 	EMovementState MovementState = EMovementState::MS_Idle;
-	void ChangeMovement(EMovementState ms);
+	void SetMovementState(EMovementState NewMovementState);
+	bool CheckMovementState(EMovementState _MovementState);
+	EMovementState GetMovementState();
 
+	bool CanBeHit();
+	void EnableCounterAttack();
 	void Die();
 
 	/* UI */
@@ -57,7 +62,10 @@ public:
 	void OnStaminaChangedReceived(float CurrentStamina, float MaxStamina);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attribute")
-	UPlayerAttributeComponent *PlayerAttributeComp;
+	UPlayerAttributeComponent *AttrComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	UPlayerCombatComponent *CombatComp;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class UStatusBar> StatusBarClass;
@@ -68,37 +76,6 @@ public:
 	void HideUI();
 	void ShowUI();
 
-	/* 전투 (공격)*/
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-	bool bIsAttacking = false; // 공격 중인지
-	bool bCanAttack = true;	   // 공격 할 수 있는지(동작 쿨다운 확인용)
-	bool bCanCombo = false;	   // 콤보를 연속할 수 있는지
-	bool bWantCombo = false;   // 플레이어가 콤보 연속을 원하는지
-	bool bIsHitting = false;   // 피격 중인지
-	bool bCanBeHit = true;	   // 피격 가능한지
-	bool bIsSweeping = false;  // 스윕을 하는 중인지
-	bool bIsSwept = false;	   // 스윕을 받는 중인지
-
-	class UNiagaraSystem *AttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	class UNiagaraSystem *LightAttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	class UNiagaraSystem *HeavyAttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	class UNiagaraSystem *CounterAttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *ImpactParticle;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *GuardImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *ParryImpactVFX;
-
 	/* 전투 (피격)*/
 	EHitResult Hit(const FGameplayHitInfo &HitInfo); // 피격
 
@@ -108,7 +85,7 @@ public:
 
 	bool bIsCounterTiming = false; // 공격을 받기 직전인지(회피 타이밍)
 
-protected: // camera
+public: // camera
 	// 1. 카운터 준비 시 카메라 앵글 (Socket Offset)
 	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
 	FVector DefaultSocketOffset; // 게임 시작 시 자동 저장됨
@@ -171,16 +148,14 @@ protected:
 	void Look(const FInputActionValue &Value);				// 캐릭터의 카메라 방향을 조종한다
 	void SwitchFocus(const FInputActionValue &Value);		// 캐릭터의 포커싱 활용 여부를 전환한다
 	void ChangeFocusTarget(const FInputActionValue &Value); // 캐릭터의 포커싱 타겟을 바꾼다
-	void Attack();											// 상태에 따라 공격을 한다
-	void LightAttack();										// 기본 공격(약한 공격)을 한다
-	void HeavyAttack();										// 강공격을 한다
-	void Jump() override;									// 공격 중 점프 비활성화를 위한 오버라이드
-	void Run();												// 캐릭터의 이동속도 상한을 증가시킨다
-	void StopRunning();										// 캐릭터의 이동속도 상한을 기본 속도로 설정한다
-	void Dodge();											// 캐릭터가 회피한다
-	void CounterAttack();
 
-	void SetAttackAttribute(float DMultiplier, float SMultiplier, EAttackDirection Direction, UNiagaraSystem *Niagara);
+	void Attack();		// 상태에 따라 공격을 한다
+	void HeavyAttack(); // 강공격을 한다
+	void Dodge();		// 캐릭터가 회피한다
+
+	void Jump() override; // 공격 중 점프 비활성화를 위한 오버라이드
+	void Run();			  // 캐릭터의 이동속도 상한을 증가시킨다
+	void StopRunning();	  // 캐릭터의 이동속도 상한을 기본 속도로 설정한다
 
 	/* 카메라 및 포커싱 */
 	void ToogleFocus();						 //  SwitchFocus의 실제 구현부
@@ -205,73 +180,11 @@ protected:
 	UFUNCTION()
 	void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
-	bool bCanCounterAttack = false;
-	int32 CurrentAttackCombo = 0; // 현재 콤보 수
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	float LightAttackRange = 120.0f; // 기본 공격 범위
-
-	float DamageMultiplier = 1.0f;
-	float StaminaMultiplier = 1.0f;
-	EAttackDirection AttackDirection;
-
-	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *HeavyAttackMontage; // 강공격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<EAttackDirection, UAnimMontage *> HitMontages; // 피격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *DashAttackMontage; // 대쉬공격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *BlockedMontage; // 공격 막힘 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ParryMontage; // 패링 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ParryActivationMontage; // 패링 발동 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *StunMontage; // 스턴 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ReadyCounterMontage; // 카운터 준비 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ReleaseCounterMontage; // 카운터 준비 해제 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *CounterMontage; // 카운터 공격 몽타주
-
-	void AttackTrace();		  // 공격 트레이스
-	void AttackBeforeTrace(); // 공격 이전 트레이스(회피 타이밍)
-
-	/* 전투 (피격)*/
-	TSet<AActor *> ProcessedActors;
-	UPROPERTY(EditAnywhere)
-	bool bDrawDebugShape = true;
-
-	void PlayHitMontage(EAttackDirection ad); // 피격 몽타주 재생
-	void ResetHitCharacters();				  // 피격 캐릭터 배열 초기화
-
+public:
 	/* 조작 */
 	UCharacterMovementComponent *MoveComp;
 	bool CanMove();
 	void ResetMovement();
-
-	/* 조작 (걷기)*/
-	float WalkSpeed = 450;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
 	float SideMovementMultiplier = 0.5f; // 좌/우 성분 계수
@@ -282,8 +195,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Tuning")
 	float AlignmentThreshold = 0.9f; // 전방 기준 임계
 
-	/* 조작 (달리기)*/
-	float RunSpeed = 1000;
 	bool bIsRunning = false;
 
 	/* 조작(점프) */
@@ -292,23 +203,7 @@ protected:
 
 	virtual void Landed(const FHitResult &Hit) override;
 
-	/* 조작 (회피)*/
-	bool bIsDodging = false;
-	float DodgeCooldown = 2.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	UAnimMontage *DodgeMontage; // 회피 몽타주 레퍼런스
-
-	/* 조작 (가드/패링)*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
-	bool bIsGuarding = false;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
-	bool bIsParrying = false;
-
-	void Parry(); // 공격을 튕겨내는 패리를 한다
 	void Guard();
-	void ReactStunned();
-
 	void StopGuarding();
 	/* 더미 기능 */
 	UPROPERTY(EditAnywhere, Category = "Dummy")
