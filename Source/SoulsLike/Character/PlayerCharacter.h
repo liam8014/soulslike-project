@@ -19,7 +19,7 @@ struct FInputActionValue;
 
 class UPlayerAttributeComponent;
 class UPlayerCombatComponent;
-
+class UPlayerDataAsset;
 template <typename TEnum>
 static FText EnumDisplayName(TEnum Value)
 {
@@ -36,6 +36,9 @@ class SOULSLIKE_API APlayerCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	APlayerCharacter();
+
+	UPROPERTY(EditDefaultsOnly)
+	UPlayerDataAsset *PlayerDataAsset;
 
 	/* 플레이어 상태 */
 	EMovementState MovementState = EMovementState::MS_Idle;
@@ -86,7 +89,6 @@ public:
 	bool bIsCounterTiming = false; // 공격을 받기 직전인지(회피 타이밍)
 
 public: // camera
-	// 1. 카운터 준비 시 카메라 앵글 (Socket Offset)
 	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
 	FVector DefaultSocketOffset; // 게임 시작 시 자동 저장됨
 
@@ -96,7 +98,6 @@ public: // camera
 	UPROPERTY(EditAnywhere, Category = "Camera|Effect")
 	float CameraInterpSpeed = 5.0f; // 카메라 이동 속도
 
-	// 2. 카운터 실행 시 FOV 연출
 	float DefaultFOV; // 게임 시작 시 자동 저장됨
 	float TargetFOV;  // 현재 목표 FOV
 

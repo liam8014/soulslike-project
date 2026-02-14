@@ -21,6 +21,7 @@ class SOULSLIKE_API UPlayerCombatComponent : public UActorComponent
 public:
 	// Sets default values for this component's properties
 	UPlayerCombatComponent();
+	void InitializeFromDataAsset(class UPlayerDataAsset *DataAsset);
 
 	// --- [외부 제어 함수] ---
 	void EnableAttackSweep();
@@ -75,7 +76,10 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-protected:
+private:
+	UPROPERTY()
+	class UPlayerDataAsset *PlayerData;
+
 	// --- [내부 멤버 변수] ---
 	UPROPERTY()
 	APlayerCharacter *Owner;
@@ -95,7 +99,7 @@ protected:
 	// 동작 플래그
 	bool bIsSweeping = false;
 	bool bIsDodging = false;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement") // 애님그래프 연동용
+	UPROPERTY(EditAnywhere, Category = "Movement") // 애님그래프 연동용
 	bool bIsGuarding = false;
 	bool bCanBeHit = true;
 	bool bIsParrying = false;
@@ -117,67 +121,10 @@ protected:
 
 	void SetAttackAttribute(float DMultiplier, float SMultiplier, EAttackDirection Direction, UNiagaraSystem *Niagara);
 
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UNiagaraSystem *LightAttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UNiagaraSystem *HeavyAttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UNiagaraSystem *CounterAttackImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *ImpactParticle;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *GuardImpactVFX;
-
-	UPROPERTY(EditAnywhere, Category = "VFX")
-	UParticleSystem *ParryImpactVFX;
-
 	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
 
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawDebugShape = true;
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TArray<UAnimMontage *> AttackMontages; // 콤보 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *HeavyAttackMontage; // 강공격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *DashAttackMontage; // 대쉬공격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ParryMontage; // 패링 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ParryActivationMontage; // 패링 발동 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ReadyCounterMontage; // 카운터 준비 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *ReleaseCounterMontage; // 카운터 준비 해제 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<EAttackDirection, UAnimMontage *> HitMontages; // 피격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages; // 피격(가드) 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *BlockedMontage; // 공격 막힘 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *CounterMontage; // 카운터 공격 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	UAnimMontage *StunMontage; // 스턴 몽타주
-
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	UAnimMontage *DodgeMontage; // 회피 몽타주
 
 public:
 	// Called every frame

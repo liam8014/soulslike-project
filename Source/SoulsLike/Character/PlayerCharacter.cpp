@@ -69,6 +69,7 @@ void APlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 	InitComponents();
 	SetupBindings();
+
 	PlayerController = Cast<APlayerController>(GetController());
 	if (PlayerController)
 	{
@@ -158,6 +159,14 @@ void APlayerCharacter::InitComponents()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Combat Component set failed!"));
+	}
+
+	if (PlayerDataAsset)
+	{
+		if (AttrComp)
+			AttrComp->InitializeFromDataAsset(PlayerDataAsset);
+		if (CombatComp)
+			CombatComp->InitializeFromDataAsset(PlayerDataAsset);
 	}
 }
 void APlayerCharacter::SetupBindings()

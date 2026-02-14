@@ -7,6 +7,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "SoulsLike/Character/PlayerAttributeComponent.h"
+#include "SoulsLike/Character/PlayerDataAsset.h"
 
 // Sets default values for this component's properties
 UPlayerCombatComponent::UPlayerCombatComponent()
@@ -16,6 +17,10 @@ UPlayerCombatComponent::UPlayerCombatComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 
 	// ...
+}
+void UPlayerCombatComponent::InitializeFromDataAsset(UPlayerDataAsset *DataAsset)
+{
+	PlayerData = DataAsset;
 }
 void UPlayerCombatComponent::EnableAttackSweep()
 {
@@ -147,19 +152,27 @@ void UPlayerCombatComponent::RequestAttack()
 
 void UPlayerCombatComponent::LightAttack()
 {
+	if (!PlayerData || !OwnerAttrComp)
+		return;
+
+	// 스테미나 소모 체크
 	if (!OwnerAttrComp->TryConsumeStamina(OwnerAttrComp->GetLightAttackStaminaCost()))
 	{
 		Owner->ResetMovement();
 		return;
 	}
+
 	Owner->SetMovementState(EMovementState::MS_Attacking);
 	bCanCombo = false;
 
-	CurrentAttackCombo = (CurrentAttackCombo + 1) % (AttackMontages.Num() + 1);
-	if (!CurrentAttackCombo) // 현재 공격 콤보 0 방지
-	{
+	const TArray<UAnimMontage *> &Montages = PlayerData->AttackMontages;
+	if (Montages.Num() == 0)
+		return;
+
+	CurrentAttackCombo = (CurrentAttackCombo + 1) % (Montages.Num() + 1);
+	if (CurrentAttackCombo == 0)
 		CurrentAttackCombo = 2;
-	}
+
 	switch (CurrentAttackCombo)
 	{
 	case 1:
@@ -171,36 +184,38 @@ void UPlayerCombatComponent::LightAttack()
 		AttackDirection = EAttackDirection::AD_Right;
 		break;
 	}
-	SetAttackAttribute(1.0f, 1.0f, AttackDirection, LightAttackImpactVFX);
-	UAnimMontage *CurrentAnimMontage = nullptr;
 
-	if (Owner->GetVelocity().Size() >= (OwnerAttrComp->GetMaxSprintSpeed() * 0.85f)) // 플레이어 캐릭터 현재 속도가 달리기 속도의 85% 이상일 때, 대쉬 공격 재생
+	SetAttackAttribute(1.0f, 1.0f, AttackDirection, PlayerData->LightAttackImpactVFX);
+
+	UAnimMontage *SelectedMontage = nullptr;
+
+	if (Owner->GetVelocity().Size() >= (OwnerAttrComp->GetMaxSprintSpeed() * 0.85f))
 	{
-		CurrentAnimMontage = DashAttackMontage;
+		SelectedMontage = PlayerData->DashAttackMontage;
 		CurrentAttackCombo = 1;
 	}
-	else if (CurrentAttackCombo - 1 >= 0 && CurrentAttackCombo - 1 < AttackMontages.Num())
+	else if (Montages.IsValidIndex(CurrentAttackCombo - 1))
 	{
-		CurrentAnimMontage = AttackMontages[CurrentAttackCombo - 1];
+		SelectedMontage = Montages[CurrentAttackCombo - 1];
 	}
 
-	if (CurrentAnimMontage && !bIsDodging)
+	if (SelectedMontage && !bIsDodging)
 	{
-		Owner->PlayAnimMontage(CurrentAnimMontage, OwnerAttrComp->GetLightAttackSpeed());
+		Owner->PlayAnimMontage(SelectedMontage, PlayerData->LightAttackSpeed);
 	}
 }
 
 void UPlayerCombatComponent::HeavyAttack()
 {
-	if (HeavyAttackMontage)
+	if (PlayerData->HeavyAttackMontage)
 	{
 		OwnerAttrComp->DisableRegenStamina();
 		bCanAttack = false;
 
 		Owner->SetMovementState(EMovementState::MS_Attacking);
-		SetAttackAttribute(3.0f, 3.5f, EAttackDirection::AD_Forward, HeavyAttackImpactVFX);
+		SetAttackAttribute(3.0f, 3.5f, EAttackDirection::AD_Forward, PlayerData->HeavyAttackImpactVFX);
 
-		Owner->PlayAnimMontage(HeavyAttackMontage, 1.0f);
+		Owner->PlayAnimMontage(PlayerData->HeavyAttackMontage, 1.0f);
 	}
 }
 
@@ -219,7 +234,11 @@ void UPlayerCombatComponent::Dodge()
 		bCanBeHit = false;
 
 		bIsDodging = true;
-		Owner->PlayAnimMontage(DodgeMontage, 1.3f);
+		if (PlayerData->DodgeMontage)
+		{
+			Owner->PlayAnimMontage(PlayerData->DodgeMontage, 1.3f);
+		}
+
 		if (bIsCounterTiming)
 		{
 			bCanCounterAttack = true;
@@ -240,10 +259,10 @@ void UPlayerCombatComponent::CounterAttack()
 	bCanCounterAttack = false;
 	bCanBeHit = false;
 	Owner->SetMovementState(EMovementState::MS_Attacking);
-	SetAttackAttribute(4.0f, 1.0f, AttackDirection, CounterAttackImpactVFX);
-	if (CounterMontage)
+	SetAttackAttribute(4.0f, 1.0f, AttackDirection, PlayerData->CounterAttackImpactVFX);
+	if (PlayerData->CounterMontage)
 	{
-		Owner->PlayAnimMontage(CounterMontage, 1.0f);
+		Owner->PlayAnimMontage(PlayerData->CounterMontage, 1.0f);
 	}
 
 	FVector LaunchDir = Owner->GetActorForwardVector();
@@ -262,9 +281,9 @@ void UPlayerCombatComponent::Parry()
 		return;
 	}
 	StopGuarding();
-	if (ParryMontage)
+	if (PlayerData->ParryMontage)
 	{
-		Owner->PlayAnimMontage(ParryMontage, 1.0f);
+		Owner->PlayAnimMontage(PlayerData->ParryMontage, 1.0f);
 	}
 }
 
@@ -290,10 +309,10 @@ void UPlayerCombatComponent::StopGuarding()
 
 void UPlayerCombatComponent::Stun()
 {
-	if (StunMontage)
+	if (PlayerData->StunMontage)
 	{
 		Owner->SetMovementState(EMovementState::MS_Stun);
-		Owner->PlayAnimMontage(StunMontage, 1.0f);
+		Owner->PlayAnimMontage(PlayerData->StunMontage, 1.0f);
 	}
 }
 
@@ -329,9 +348,9 @@ EHitResult UPlayerCombatComponent::Hit(const FGameplayHitInfo &HitInfo)
 		res = EHitResult::HR_Parry;
 		Owner->LaunchCharacter(KnockBackVector * 0.5, true, true);
 		OwnerAttrComp->ChangeStamina(OwnerAttrComp->GetParryStaminaReturn());
-		if (ParryActivationMontage)
+		if (PlayerData->ParryActivationMontage)
 		{
-			Owner->PlayAnimMontage(ParryActivationMontage);
+			Owner->PlayAnimMontage(PlayerData->ParryActivationMontage);
 		}
 	}
 	else
@@ -358,41 +377,27 @@ EHitResult UPlayerCombatComponent::Hit(const FGameplayHitInfo &HitInfo)
 			Stun();
 		}
 	}
-	if (res == EHitResult::HR_Guard || res == EHitResult::HR_Parry)
+	// 가드/패링 이펙트 처리
+	UParticleSystem *ImpactEffect = (res == EHitResult::HR_Guard) ? PlayerData->GuardImpactVFX : (res == EHitResult::HR_Parry) ? PlayerData->ParryImpactVFX
+																															   : nullptr;
+
+	if (ImpactEffect)
 	{
-		if (GuardImpactVFX && ParryImpactVFX)
-		{
-			UGameplayStatics::SpawnEmitterAtLocation(
-				GetWorld(),
-				res == EHitResult::HR_Guard ? GuardImpactVFX : ParryImpactVFX,
-				HitInfo.HitLocation,
-				HitInfo.ImpactNormal.Rotation(),
-				true);
-		}
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactEffect, HitInfo.HitLocation, HitInfo.ImpactNormal.Rotation());
 	}
 	return res;
 }
 
-void UPlayerCombatComponent::PlayHitMontage(EAttackDirection ad)
+void UPlayerCombatComponent::PlayHitMontage(EAttackDirection HitAttackDirection)
 {
-	UAnimMontage *CurrentAnimMontage;
-	if (HitMontages.Contains(ad) && HitGuardMontages.Contains(ad))
-	{
-		CurrentAnimMontage = (bIsGuarding ? HitGuardMontages[ad] : HitMontages[ad]);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Invalid AttackDirection key: %d"), (int32)ad);
+	if (!PlayerData)
 		return;
-	}
 
-	if (CurrentAnimMontage)
+	UAnimMontage *const *MontagePtr = bIsGuarding ? PlayerData->HitGuardMontages.Find(HitAttackDirection) : PlayerData->HitMontages.Find(HitAttackDirection);
+
+	if (MontagePtr && *MontagePtr)
 	{
-		Owner->PlayAnimMontage(CurrentAnimMontage, 0.9f);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Hit Montage Is Not Found!"));
+		Owner->PlayAnimMontage(*MontagePtr, 0.9f);
 	}
 }
 
@@ -530,11 +535,11 @@ void UPlayerCombatComponent::ProcessHit(const FHitResult &HitResult)
 				ImpactLocation,
 				VFXRotation);
 		}
-		if (ImpactParticle)
+		if (PlayerData->ImpactParticle)
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(
 				GetWorld(),
-				ImpactParticle,
+				PlayerData->ImpactParticle,
 				ImpactLocation,
 				VFXRotation,
 				true);

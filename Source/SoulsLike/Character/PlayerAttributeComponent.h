@@ -14,39 +14,31 @@ class SOULSLIKE_API UPlayerAttributeComponent : public UAttributeComponent
 {
 	GENERATED_BODY()
 public:
+	void InitializeFromDataAsset(class UPlayerDataAsset *DataAsset);
+
 	bool TryConsumeStamina(float Amount);
 
-	FORCEINLINE float GetMaxWalkSpeed() const { return MaxWalkSpeed; }
-
-	FORCEINLINE float GetMaxSprintSpeed() const { return MaxSprintSpeed; }
-
-	FORCEINLINE float GetAttackSweepRange() const { return AttackSweepRange; }
-
-	FORCEINLINE float GetAttackSweepRadius() const { return AttackSweepRadius; }
-
-	FORCEINLINE float GetLightAttackStaminaCost() const { return LightAttackStaminaCost; }
-
-	FORCEINLINE float GetHeavyAttackStaminaCost() const { return HeavyAttackStaminaCost; }
-
-	FORCEINLINE float GetSprintActivationCost() const { return SprintActivationCost; }
-
-	FORCEINLINE float GetSprintStaminaCost() const { return SprintStaminaCost; }
-
-	FORCEINLINE float GetDodgeStaminaCost() const { return DodgeStaminaCost; }
-
-	FORCEINLINE float GetParryStaminaCost() const { return ParryStaminaCost; }
-
-	FORCEINLINE float GetParryStaminaReturn() const { return ParryStaminaReturn; }
-
-	FORCEINLINE float GetGuardRate() const { return GuardRate; }
-
-	FORCEINLINE float GetLightAttackSpeed() const { return LightAttackSpeed; }
-
-	FORCEINLINE float GetGuardStaminaCostRate() const { return GuardStaminaCostRate; }
-
-	FORCEINLINE float GetGuardStaminaRegenMultiplier() const { return GuardStaminaRegenMultiplier; }
+	// Getters (선언만 유지)
+	float GetMaxWalkSpeed() const;
+	float GetMaxSprintSpeed() const;
+	float GetAttackSweepRange() const;
+	float GetAttackSweepRadius() const;
+	float GetLightAttackStaminaCost() const;
+	float GetHeavyAttackStaminaCost() const;
+	float GetSprintActivationCost() const;
+	float GetSprintStaminaCost() const;
+	float GetDodgeStaminaCost() const;
+	float GetParryStaminaCost() const;
+	float GetParryStaminaReturn() const;
+	float GetGuardRate() const;
+	float GetLightAttackSpeed() const;
+	float GetGuardStaminaCostRate() const;
+	float GetGuardStaminaRegenMultiplier() const;
 
 private:
+	UPROPERTY()
+	class UPlayerDataAsset *PlayerData;
+
 	UPROPERTY(VisibleAnywhere, Category = "Locomotion")
 	float MaxWalkSpeed = 450; // 최대 걷기 속도
 
