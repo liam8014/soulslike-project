@@ -24,11 +24,11 @@ protected:
 	virtual void BeginPlay() override;
 	// 1. 트리거 영역 (플레이어가 밟으면 시작)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	class UBoxComponent *TriggerBox;
+	TObjectPtr<class UBoxComponent> TriggerBox;
 
 	// 2. 도망 못 가게 막는 벽 (레벨에 배치된 액터를 에디터에서 지정)
 	UPROPERTY(EditInstanceOnly, Category = "BossEvent")
-	AActor *BlockingWall;
+	TObjectPtr<AActor> BlockingWall;
 
 	// 3. 스폰할 보스 클래스
 	UPROPERTY(EditAnywhere, Category = "BossEvent")
@@ -36,11 +36,11 @@ protected:
 
 	// 4. 보스가 스폰될 위치 (Target Point 등을 지정하거나 좌표 입력)
 	UPROPERTY(EditInstanceOnly, Category = "BossEvent")
-	AActor *BossSpawnPoint;
+	TObjectPtr<AActor> BossSpawnPoint;
 
 	// 5. 실행할 시퀀스 (카메라 연출용)
 	UPROPERTY(EditAnywhere, Category = "BossEvent")
-	ULevelSequence *BossSequence;
+	TObjectPtr<ULevelSequence> BossSequence;
 
 	UFUNCTION()
 	void OnTriggerOverlap(UPrimitiveComponent *OverlappedComp, AActor *OtherActor, UPrimitiveComponent *OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult &SweepResult);
@@ -53,19 +53,19 @@ protected:
 	void OnDieReceived();
 
 	UPROPERTY(EditAnywhere, Category = "BossEvent")
-	USoundBase *BossBattleBGM;
+	TObjectPtr<USoundBase> BossBattleBGM;
 
 private:
 	UPROPERTY()
-	ALevelSequenceActor *SequenceActor; // 재생 중인 시퀀스 액터
+	ALevelSequenceActor* SequenceActor; // 재생 중인 시퀀스 액터
 
 	UPROPERTY()
-	class AEnemyBase *SpawnedBoss; // 스폰된 보스 저장
+	TObjectPtr<class AEnemyBase> SpawnedBoss; // 스폰된 보스 저장
 
 	bool bIsTriggered = false; // 중복 실행 방지
 
 	UPROPERTY()
-	UAudioComponent *BGMComponent;
+	TObjectPtr<UAudioComponent> BGMComponent;
 
 public:
 	// Called every frame

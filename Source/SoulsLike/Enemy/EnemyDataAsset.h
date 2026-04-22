@@ -39,16 +39,16 @@ public:
 	TArray<FAttackTypeAttribute> AttackPatterns;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")
-	UParticleSystem *AttackImpactVFX;
+	TObjectPtr<UParticleSystem> AttackImpactVFX;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")
-	USoundBase *HitSFX;
+	TObjectPtr<USoundBase> HitSFX;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")
-	UAnimMontage *DieMontage;
+	TObjectPtr<UAnimMontage> DieMontage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Assets")
-	UAnimMontage *StunMontage;
+	TObjectPtr<UAnimMontage> StunMontage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
 	float DissolveSpeed = 0.5f;

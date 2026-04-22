@@ -12,7 +12,7 @@ struct FPoolArray
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TArray<AActor *> InactiveActors;
+	TArray<TObjectPtr<AActor>> InactiveActors;
 
 	int32 ActiveCount = 0;
 };
@@ -33,5 +33,5 @@ public:
 
 private:
 	UPROPERTY()
-	TMap<UClass *, FPoolArray> ObjectPools;
+	TMap<TObjectPtr<UClass>, FPoolArray> ObjectPools;
 };

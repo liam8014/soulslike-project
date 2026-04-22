@@ -393,7 +393,7 @@ void UPlayerCombatComponent::PlayHitMontage(EAttackDirection HitAttackDirection)
 	if (!PlayerData)
 		return;
 
-	UAnimMontage *const *MontagePtr = bIsGuarding ? PlayerData->HitGuardMontages.Find(HitAttackDirection) : PlayerData->HitMontages.Find(HitAttackDirection);
+	TObjectPtr<UAnimMontage> *const MontagePtr = bIsGuarding ? PlayerData->HitGuardMontages.Find(HitAttackDirection) : PlayerData->HitMontages.Find(HitAttackDirection);
 
 	if (MontagePtr && *MontagePtr)
 	{

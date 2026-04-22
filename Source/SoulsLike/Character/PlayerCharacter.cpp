@@ -28,11 +28,12 @@
 
 #include "Engine/World.h"	   // UWorld
 #include "Containers/Ticker.h" // FTSTicker, FTickerDelegate
-#include "SoulsLike/UI/StatusBar.h"
 #include "SoulsLike/Enemy/EnemyBase.h"
 #include "SoulsLike/Component/AttributeComponent.h"
 #include "SoulsLike/Character/PlayerAttributeComponent.h"
 #include "SoulsLike/Character/PlayerCombatComponent.h"
+#include "SoulsLike/Character/PlayerStateComponent.h"
+#include "SoulsLike/Character/PlayerUIComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -41,6 +42,8 @@ APlayerCharacter::APlayerCharacter()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	StateComp = CreateDefaultSubobject<UPlayerStateComponent>(TEXT("StateComp"));
+	UIComp = CreateDefaultSubobject<UPlayerUIComponent>(TEXT("UIComp"));
 }
 
 void APlayerCharacter::RestoreFOV()
@@ -81,19 +84,9 @@ void APlayerCharacter::BeginPlay()
 		}
 	}
 
-	if (PlayerController && FocusIndicatorWidgetClass)
+	if (UIComp)
 	{
-		UE_LOG(LogTemp, Display, TEXT("FocusIndicatorWidgetClass registered in BeginPlay"));
-		FocusIndicatorWidget = CreateWidget<UUserWidget>(
-			PlayerController,		  // 소유자
-			FocusIndicatorWidgetClass // 에디터에서 지정한 위젯 클래스
-		);
-		if (FocusIndicatorWidget)
-		{
-			FocusIndicatorWidget->AddToViewport();						   // 화면에 추가
-			FocusIndicatorWidget->SetVisibility(ESlateVisibility::Hidden); // 초기엔 숨김
-			UE_LOG(LogTemp, Display, TEXT("FocusIndicatorWidget registered in BeginPlay"));
-		}
+		UIComp->InitializeUI(PlayerController, StatusBarClass, FocusIndicatorWidgetClass);
 	}
 
 	CameraBoom = FindComponentByClass<USpringArmComponent>(); // 카메라 스프링 암 컴포넌트 찾기
@@ -116,15 +109,6 @@ void APlayerCharacter::BeginPlay()
 	{
 		MoveComp->bOrientRotationToMovement = true; // 이동 방향으로 자동 회전
 		MoveComp->RotationRate = FRotator(0.f, 500.0f, 0.f);
-	}
-
-	if (StatusBarClass)
-	{
-		StatusBar = CreateWidget<UStatusBar>(GetWorld(), StatusBarClass);
-		if (StatusBar)
-		{
-			StatusBar->AddToViewport();
-		}
 	}
 
 	if (CameraBoom)
@@ -334,7 +318,7 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 		return;
 	}
 
-	if (!FocusIndicatorWidget)
+	if (!UIComp || !UIComp->HasFocusIndicator())
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed To Load Focus Indicator Widget!"));
 		return;
@@ -353,7 +337,7 @@ void APlayerCharacter::UpdateFocusCamera(float DeltaTime)
 	FVector2D ScreenPos;
 	if (UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(PlayerController, TargetLoc, ScreenPos, false))
 	{
-		FocusIndicatorWidget->SetPositionInViewport(ScreenPos + FVector2D(0.0f, -30.0f), false);
+		UIComp->SetFocusIndicatorScreenPosition(ScreenPos + FVector2D(0.0f, -30.0f));
 	}
 
 	FVector CamLoc = FollowCamera
@@ -385,7 +369,10 @@ void APlayerCharacter::ToogleFocus()
 	if (bIsFocusing)
 	{
 		bIsFocusing = false;
-		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (UIComp)
+		{
+			UIComp->SetFocusIndicatorVisible(false);
+		}
 
 		bUseControllerRotationYaw = false; // 컨트롤러 회전 사용하지 않음
 		if (MoveComp)
@@ -397,7 +384,10 @@ void APlayerCharacter::ToogleFocus()
 	{
 		bIsFocusing = true;
 		StopRunning();
-		FocusIndicatorWidget->SetVisibility(ESlateVisibility::Visible);
+		if (UIComp)
+		{
+			UIComp->SetFocusIndicatorVisible(true);
+		}
 
 		bUseControllerRotationYaw = true; // 컨트롤러 회전 사용
 		if (MoveComp)
@@ -444,12 +434,12 @@ void APlayerCharacter::Tick(float DeltaTime)
 	{
 		// SetMovementState(EMovementState::MS_Falling);
 	}
-	else if (MovementState == EMovementState::MS_Falling)
+	else if (GetMovementState() == EMovementState::MS_Falling)
 	{
 		SetMovementState(EMovementState::MS_Idle);
 	}
 
-	if (MovementState == EMovementState::MS_Moving && GetVelocity().Size() == 0)
+	if (GetMovementState() == EMovementState::MS_Moving && GetVelocity().Size() == 0)
 	{
 		SetMovementState(EMovementState::MS_Idle);
 	}
@@ -582,7 +572,7 @@ void APlayerCharacter::HeavyAttack()
 {
 	if (CombatComp->CanAttack() && CanMove())
 	{
-		if (MovementState == EMovementState::MS_Attacking)
+		if (GetMovementState() == EMovementState::MS_Attacking)
 		{
 			return;
 		}
@@ -658,8 +648,7 @@ void APlayerCharacter::Dodge()
 
 bool APlayerCharacter::CanMove()
 {
-	return (MovementState == EMovementState::MS_Moving ||
-			MovementState == EMovementState::MS_Idle);
+	return StateComp ? StateComp->CanMove() : false;
 }
 
 void APlayerCharacter::ResetMovement()
@@ -672,18 +661,18 @@ void APlayerCharacter::ResetMovement()
 }
 void APlayerCharacter::SetMovementState(EMovementState NewMovementState)
 {
-	if (MovementState != NewMovementState)
+	if (StateComp)
 	{
-		MovementState = NewMovementState;
+		StateComp->SetMovementState(NewMovementState);
 	}
 }
 bool APlayerCharacter::CheckMovementState(EMovementState _MovementState)
 {
-	return (MovementState == _MovementState);
+	return StateComp ? StateComp->IsInMovementState(_MovementState) : false;
 }
 EMovementState APlayerCharacter::GetMovementState()
 {
-	return MovementState;
+	return StateComp ? StateComp->GetMovementState() : EMovementState::MS_Idle;
 }
 bool APlayerCharacter::CanBeHit()
 {
@@ -706,27 +695,27 @@ void APlayerCharacter::StopGuarding()
 
 void APlayerCharacter::HideUI()
 {
-	if (StatusBar)
+	if (UIComp)
 	{
-		StatusBar->SetVisibility(ESlateVisibility::Hidden);
+		UIComp->SetStatusBarVisible(false);
 		UE_LOG(LogTemp, Warning, TEXT("UI Hidden"));
 	}
 }
 
 void APlayerCharacter::ShowUI()
 {
-	if (StatusBar)
+	if (UIComp)
 	{
-		StatusBar->SetVisibility(ESlateVisibility::Visible);
+		UIComp->SetStatusBarVisible(true);
 		UE_LOG(LogTemp, Warning, TEXT("UI Visible"));
 	}
 }
 
 void APlayerCharacter::OnHealthChangedReceived(float CurrentHealth, float MaxHealth)
 {
-	if (StatusBar)
+	if (UIComp)
 	{
-		StatusBar->SetHealthPercent(CurrentHealth / MaxHealth);
+		UIComp->SetHealthPercent(CurrentHealth / MaxHealth);
 	}
 	if (CurrentHealth <= 0)
 	{
@@ -736,9 +725,9 @@ void APlayerCharacter::OnHealthChangedReceived(float CurrentHealth, float MaxHea
 
 void APlayerCharacter::OnStaminaChangedReceived(float CurrentStamina, float MaxStamina)
 {
-	if (StatusBar)
+	if (UIComp)
 	{
-		StatusBar->SetStaminaPercent(CurrentStamina / MaxStamina);
+		UIComp->SetStaminaPercent(CurrentStamina / MaxStamina);
 	}
 	if (CurrentStamina <= 0)
 	{

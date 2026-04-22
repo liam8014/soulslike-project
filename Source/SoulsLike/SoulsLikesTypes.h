@@ -57,7 +57,7 @@ public:
 	FVector ImpactNormal = FVector::UpVector; // 타격 지점의 법선 벡터 (VFX 회전값 계산용)
 
 	UPROPERTY(BlueprintReadWrite)
-	AActor *DamageCauser = nullptr; // 공격자
+	TObjectPtr<AActor> DamageCauser = nullptr; // 공격자
 
 	UPROPERTY(BlueprintReadWrite)
 	bool bCanBlock = true; // 막을 수 있는 공격인지
@@ -76,7 +76,7 @@ public:
 	float WaitTime = 3.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-	UAnimMontage *AttackAnim = nullptr;
+	TObjectPtr<UAnimMontage> AttackAnim = nullptr;
 };
 class SOULSLIKE_API SoulsLikesTypes
 {

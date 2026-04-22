@@ -78,14 +78,14 @@ protected:
 
 private:
 	UPROPERTY()
-	class UPlayerDataAsset *PlayerData;
+	TObjectPtr<class UPlayerDataAsset> PlayerData;
 
 	// --- [내부 멤버 변수] ---
 	UPROPERTY()
-	APlayerCharacter *Owner;
+	TObjectPtr<APlayerCharacter> Owner;
 
 	UPROPERTY()
-	UPlayerAttributeComponent *OwnerAttrComp;
+	TObjectPtr<UPlayerAttributeComponent> OwnerAttrComp;
 
 	// 메인 스윕 함수 (Tick에서 호출)
 	void AttackTrace();
@@ -110,18 +110,18 @@ private:
 	bool bWantCombo = false;
 
 	// 중복 피격 방지
-	TSet<AActor *> ProcessedActors;
+	TSet<TObjectPtr<AActor>> ProcessedActors;
 
 	// 런타임 사용 변수
 	float DamageMultiplier = 1.0f;
 	float StaminaMultiplier = 1.0f;
 	EAttackDirection AttackDirection;
-	UNiagaraSystem *AttackImpactVFX;
+	TObjectPtr<UNiagaraSystem> AttackImpactVFX;
 	int32 CurrentAttackCombo = 0; // 현재 콤보 수
 
 	void SetAttackAttribute(float DMultiplier, float SMultiplier, EAttackDirection Direction, UNiagaraSystem *Niagara);
 
-	UStaticMeshComponent *SwordMeshComponent; // 검의 메쉬 컴포넌트
+	TObjectPtr<UStaticMeshComponent> SwordMeshComponent; // 검의 메쉬 컴포넌트
 
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bDrawDebugShape = true;

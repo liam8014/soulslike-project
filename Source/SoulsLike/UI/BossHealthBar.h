@@ -25,10 +25,10 @@ protected:
 	virtual void NativeTick(const FGeometry &MyGeometry, float InDeltaTime) override;
 
 	UPROPERTY(meta = (BindWidget))
-	UProgressBar *HealthBar;
+	TObjectPtr<UProgressBar> HealthBar;
 
 	UPROPERTY(meta = (BindWidget))
-	UProgressBar *GhostBar;
+	TObjectPtr<UProgressBar> GhostBar;
 
 private:
 	float CurrentGhostPercent = 1.0f; // 현재 잔상의 위치

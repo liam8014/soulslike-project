@@ -52,11 +52,11 @@ public:
 	FName TraceSocket = FName("weapon");
 
 	UPROPERTY()
-	UAnimMontage *NextAnimMontage = nullptr;
+	TObjectPtr<UAnimMontage> NextAnimMontage = nullptr;
 
 	// --- [VFX 에셋] ---
 	UPROPERTY(VisibleAnywhere, Category = "VFX")
-	UParticleSystem *AttackImpactVFX;
+	TObjectPtr<UParticleSystem> AttackImpactVFX;
 
 protected:
 	virtual void BeginPlay() override;
@@ -76,13 +76,13 @@ private:
 
 	// --- [내부 멤버 변수] ---
 	UPROPERTY()
-	AEnemyBase *Owner;
+	TObjectPtr<AEnemyBase> Owner;
 
 	UPROPERTY()
-	UAttributeComponent *OwnerAttrComp;
+	TObjectPtr<UAttributeComponent> OwnerAttrComp;
 
 	// 중복 피격 방지
-	TSet<AActor *> ProcessedActors;
+	TSet<TObjectPtr<AActor>> ProcessedActors;
 
 	bool bIsSweeping = false;
 	bool bIsAttacking = false;

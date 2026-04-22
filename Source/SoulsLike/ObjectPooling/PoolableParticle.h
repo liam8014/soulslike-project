@@ -24,7 +24,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
-	UParticleSystemComponent *ParticleComponent;
+	TObjectPtr<UParticleSystemComponent> ParticleComponent;
 
 	UFUNCTION()
 	void OnParticleFinished(UParticleSystemComponent *PSystem);

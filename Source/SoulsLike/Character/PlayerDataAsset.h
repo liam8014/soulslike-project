@@ -65,51 +65,51 @@ public:
 
 	/** --- [비주얼 이펙트 (VFX)] --- */
 	UPROPERTY(EditAnywhere, Category = "VFX", meta = (DisplayName = "약공격 피격 이펙트 (Niagara)"))
-	UNiagaraSystem *LightAttackImpactVFX;
+	TObjectPtr<UNiagaraSystem> LightAttackImpactVFX;
 
 	UPROPERTY(EditAnywhere, Category = "VFX", meta = (DisplayName = "강공격 피격 이펙트 (Niagara)"))
-	UNiagaraSystem *HeavyAttackImpactVFX;
+	TObjectPtr<UNiagaraSystem> HeavyAttackImpactVFX;
 
 	UPROPERTY(EditAnywhere, Category = "VFX", meta = (DisplayName = "카운터 피격 이펙트 (Niagara)"))
-	UNiagaraSystem *CounterAttackImpactVFX;
+	TObjectPtr<UNiagaraSystem> CounterAttackImpactVFX;
 
 	UPROPERTY(EditAnywhere, Category = "VFX", meta = (DisplayName = "기본 피격 파티클 (Cascade)"))
-	UParticleSystem *ImpactParticle;
+	TObjectPtr<UParticleSystem> ImpactParticle;
 
 	UPROPERTY(EditAnywhere, Category = "VFX", meta = (DisplayName = "가드 피격 파티클"))
-	UParticleSystem *GuardImpactVFX;
+	TObjectPtr<UParticleSystem> GuardImpactVFX;
 
 	UPROPERTY(EditAnywhere, Category = "VFX", meta = (DisplayName = "패링 성공 파티클"))
-	UParticleSystem *ParryImpactVFX;
+	TObjectPtr<UParticleSystem> ParryImpactVFX;
 
 	/** --- [애니메이션 몽타주] --- */
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "일반 공격 콤보 목록"))
-	TArray<UAnimMontage *> AttackMontages;
+	TArray<TObjectPtr<UAnimMontage>> AttackMontages;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "강공격 몽타주"))
-	UAnimMontage *HeavyAttackMontage;
+	TObjectPtr<UAnimMontage> HeavyAttackMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "대쉬 공격 몽타주"))
-	UAnimMontage *DashAttackMontage;
+	TObjectPtr<UAnimMontage> DashAttackMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "패링 시도 몽타주"))
-	UAnimMontage *ParryMontage;
+	TObjectPtr<UAnimMontage> ParryMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "패링 성공 액션 몽타주"))
-	UAnimMontage *ParryActivationMontage;
+	TObjectPtr<UAnimMontage> ParryActivationMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "카운터 공격 몽타주"))
-	UAnimMontage *CounterMontage;
+	TObjectPtr<UAnimMontage> CounterMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "스턴 몽타주"))
-	UAnimMontage *StunMontage;
+	TObjectPtr<UAnimMontage> StunMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "회피 몽타주"))
-	UAnimMontage *DodgeMontage;
+	TObjectPtr<UAnimMontage> DodgeMontage;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "방향별 피격 몽타주 맵"))
-	TMap<EAttackDirection, UAnimMontage *> HitMontages;
+	TMap<EAttackDirection, TObjectPtr<UAnimMontage>> HitMontages;
 
 	UPROPERTY(EditAnywhere, Category = "Animations|Combat", meta = (DisplayName = "방향별 가드 피격 몽타주 맵"))
-	TMap<EAttackDirection, UAnimMontage *> HitGuardMontages;
+	TMap<EAttackDirection, TObjectPtr<UAnimMontage>> HitGuardMontages;
 };

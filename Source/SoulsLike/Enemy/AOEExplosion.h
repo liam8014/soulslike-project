@@ -31,7 +31,7 @@ protected:
 	bool bUsePooling = false;
 
 	UPROPERTY()
-	UPoolManagerSubsystem *PoolMgr;
+	TObjectPtr<UPoolManagerSubsystem> PoolMgr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Pooling")
 	TSubclassOf<AActor> BeforeEffect1Class;
@@ -41,11 +41,11 @@ protected:
 	TSubclassOf<AActor> ExplosionEffectClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Components")
-	UParticleSystem *BeforeEffect1;
+	TObjectPtr<UParticleSystem> BeforeEffect1;
 	UPROPERTY(EditDefaultsOnly, Category = "Components")
-	UParticleSystem *BeforeEffect2;
+	TObjectPtr<UParticleSystem> BeforeEffect2;
 	UPROPERTY(EditDefaultsOnly, Category = "Combat")
-	UParticleSystem *ExplosionEffect;
+	TObjectPtr<UParticleSystem> ExplosionEffect;
 
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float AttackRadius = 300.0f;
@@ -59,7 +59,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float DamageAmount = 20.0f;
 	UPROPERTY(EditDefaultsOnly, Category = "SFX")
-	USoundBase *ExplosionSound;
+	TObjectPtr<USoundBase> ExplosionSound;
 
 public:
 	// Called every frame

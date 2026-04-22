@@ -20,6 +20,8 @@ struct FInputActionValue;
 class UPlayerAttributeComponent;
 class UPlayerCombatComponent;
 class UPlayerDataAsset;
+class UPlayerStateComponent;
+class UPlayerUIComponent;
 template <typename TEnum>
 static FText EnumDisplayName(TEnum Value)
 {
@@ -38,10 +40,12 @@ public:
 	APlayerCharacter();
 
 	UPROPERTY(EditDefaultsOnly)
-	UPlayerDataAsset *PlayerDataAsset;
+	TObjectPtr<UPlayerDataAsset> PlayerDataAsset;
 
 	/* 플레이어 상태 */
-	EMovementState MovementState = EMovementState::MS_Idle;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
+	TObjectPtr<UPlayerStateComponent> StateComp;
+
 	void SetMovementState(EMovementState NewMovementState);
 	bool CheckMovementState(EMovementState _MovementState);
 	EMovementState GetMovementState();
@@ -54,8 +58,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> FocusIndicatorWidgetClass;
 
-	UPROPERTY()
-	UUserWidget *FocusIndicatorWidget;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UPlayerUIComponent> UIComp;
 
 	/* 어트리뷰트 */
 	UFUNCTION()
@@ -65,16 +69,13 @@ public:
 	void OnStaminaChangedReceived(float CurrentStamina, float MaxStamina);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attribute")
-	UPlayerAttributeComponent *AttrComp;
+	TObjectPtr<UPlayerAttributeComponent> AttrComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
-	UPlayerCombatComponent *CombatComp;
+	TObjectPtr<UPlayerCombatComponent> CombatComp;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class UStatusBar> StatusBarClass;
-
-	UPROPERTY()
-	UStatusBar *StatusBar;
 
 	void HideUI();
 	void ShowUI();
@@ -118,8 +119,9 @@ protected:
 
 	void InitComponents();
 	void SetupBindings();
-
-	APlayerController *PlayerController; // 플레이어 컨트롤러
+	
+	UPROPERTY()
+	TObjectPtr<APlayerController> PlayerController; // 플레이어 컨트롤러
 
 	/* 입력 액션 및 매핑 */
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
@@ -163,16 +165,16 @@ protected:
 	bool SearchFocusTarget();				 // 포커싱 타겟을 탐색하여 성공 여부를 반환한다
 	void UpdateFocusCamera(float DeltaTime); // 카메라를 포커싱에 맞게 업데이트한다
 
-	TArray<APawn *> FocusTargetArray; // 포커싱 타겟을 저장하는 배열
+	TArray<TObjectPtr<APawn>> FocusTargetArray; // 포커싱 타겟을 저장하는 배열
 	int32 CurrentFocusIndex = 0;	  // 현재 포커싱 중인 Pawn의 Index
 	UPROPERTY(EditAnywhere)
 	float FocusSearchRadius = 3000.f; // 포커싱 범위
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
-	USpringArmComponent *CameraBoom; // 스프링 암 컴포넌트
+	TObjectPtr<USpringArmComponent> CameraBoom; // 스프링 암 컴포넌트
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
-	UCameraComponent *FollowCamera; // 카메라 컴포넌트
+	TObjectPtr<UCameraComponent> FollowCamera; // 카메라 컴포넌트
 
 	/* 애니메이션 */
 	UFUNCTION()
@@ -183,7 +185,8 @@ protected:
 
 public:
 	/* 조작 */
-	UCharacterMovementComponent *MoveComp;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
+	TObjectPtr<UCharacterMovementComponent> MoveComp;
 	bool CanMove();
 	void ResetMovement();
 

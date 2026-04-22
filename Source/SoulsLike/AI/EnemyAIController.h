@@ -22,5 +22,5 @@ public:
 
 private:
 	UPROPERTY(EditAnywhere)
-	class UBehaviorTree *AIBehavior;
+	TObjectPtr<class UBehaviorTree> AIBehavior;
 };

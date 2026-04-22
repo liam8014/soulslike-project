@@ -23,8 +23,8 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	UPROPERTY(meta = (BindWidget))
-	UProgressBar *HealthBar;
+	TObjectPtr<UProgressBar> HealthBar;
 
 	UPROPERTY(meta = (BindWidget))
-	UProgressBar *StaminaBar;
+	TObjectPtr<UProgressBar> StaminaBar;
 };

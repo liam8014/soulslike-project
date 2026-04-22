@@ -43,7 +43,7 @@ public:
 	void EnableRegenStamina();
 	void DisableRegenStamina();
 
-	ACharacter *Owner;
+	TObjectPtr<ACharacter> Owner;
 
 	FOnHealthChanged OnHealthChanged;
 	FOnStaminaChanged OnStaminaChanged;

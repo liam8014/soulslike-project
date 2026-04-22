@@ -37,7 +37,7 @@ public:
 
 private:
 	UPROPERTY()
-	class UPlayerDataAsset *PlayerData;
+	TObjectPtr<class UPlayerDataAsset> PlayerData;
 
 	UPROPERTY(VisibleAnywhere, Category = "Locomotion")
 	float MaxWalkSpeed = 450; // 최대 걷기 속도

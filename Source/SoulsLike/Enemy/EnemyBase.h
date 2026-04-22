@@ -44,10 +44,10 @@ public:
 	AEnemyBase();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
-	UCombatComponent *CombatComp;
+	TObjectPtr<UCombatComponent> CombatComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attribute")
-	UAttributeComponent *AttributeComp;
+	TObjectPtr<UAttributeComponent> AttributeComp;
 
 	bool bCanMove = true;
 	UPROPERTY(EditAnywhere)
@@ -57,7 +57,7 @@ public:
 	TSubclassOf<class UBossHealthBar> BossHealthBarClass;
 
 	UPROPERTY()
-	UBossHealthBar *BossHealthBar;
+	TObjectPtr<UBossHealthBar> BossHealthBar;
 
 	void HideHealthBar();
 
@@ -80,18 +80,18 @@ protected:
 	virtual void OnNotifyEnd(FName NotifyName, const FBranchingPointNotifyPayload &Payload);
 
 	UPROPERTY(VisibleAnywhere, Category = "Animation")
-	UAnimMontage *StunMontage;
+	TObjectPtr<UAnimMontage> StunMontage;
 
 	UPROPERTY(VisibleAnywhere, Category = "Animation")
-	UAnimMontage *DieMontage;
+	TObjectPtr<UAnimMontage> DieMontage;
 
 	bool PlayAttackMontage();
 
 	UPROPERTY(VisibleAnywhere, Category = "SFX")
-	USoundBase *HitSFX;
+	TObjectPtr<USoundBase> HitSFX;
 
 	UPROPERTY()
-	TArray<UMaterialInstanceDynamic *> MeshMIDs;
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> MeshMIDs;
 
 	FTimerHandle DissolveTimerHandle;
 
@@ -121,5 +121,5 @@ protected:
 	void InitStats();	   // 데이터 에셋 적용
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
-	UEnemyDataAsset *EnemyData;
+	TObjectPtr<UEnemyDataAsset> EnemyData;
 };
