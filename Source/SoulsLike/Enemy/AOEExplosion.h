@@ -5,11 +5,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Sound/Soundbase.h"
+#include "SoulsLike/ObjectPooling/PoolableInterface.h"
 #include "AOEExplosion.generated.h"
 
 class UParticleSystem;
+class UPoolManagerSubsystem;
 UCLASS()
-class SOULSLIKE_API AAOEExplosion : public AActor
+class SOULSLIKE_API AAOEExplosion : public AActor,
+									public IPoolableInterface
 {
 	GENERATED_BODY()
 
@@ -17,15 +20,30 @@ public:
 	// Sets default values for this actor's properties
 	AAOEExplosion();
 
+	virtual void OnSpawnFromPool() override;
+	virtual void OnReturnToPool() override;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Category = "Pooling")
+	bool bUsePooling = false;
+
+	UPROPERTY()
+	UPoolManagerSubsystem *PoolMgr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Pooling")
+	TSubclassOf<AActor> BeforeEffect1Class;
+	UPROPERTY(EditDefaultsOnly, Category = "Pooling")
+	TSubclassOf<AActor> BeforeEffect2Class;
+	UPROPERTY(EditDefaultsOnly, Category = "Pooling")
+	TSubclassOf<AActor> ExplosionEffectClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Components")
 	UParticleSystem *BeforeEffect1;
 	UPROPERTY(EditDefaultsOnly, Category = "Components")
 	UParticleSystem *BeforeEffect2;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Combat")
 	UParticleSystem *ExplosionEffect;
 

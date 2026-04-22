@@ -7,29 +7,70 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "SoulsLike/SoulsLikesTypes.h"
+#include "SoulsLike/ObjectPooling/PoolManagerSubsystem.h"
 #include "SoulsLike/Character/PlayerCharacter.h"
 
 AAOEExplosion::AAOEExplosion()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
+}
+
+void AAOEExplosion::OnSpawnFromPool()
+{
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+	// SetActorTickEnabled(true);
+	UE_LOG(LogTemp, Warning, TEXT("AOE Actor Spawned!(POOL)"));
+	TRACE_BOOKMARK(TEXT("AOE_Spawn_Pool"));
+	PoolMgr = GetWorld()->GetSubsystem<UPoolManagerSubsystem>();
+	if (BeforeEffect1Class)
+	{
+		if (PoolMgr)
+		{
+			PoolMgr->SpawnFromPool(BeforeEffect1Class, GetActorLocation(), GetActorRotation());
+		}
+	}
+
+	if (BeforeEffect2Class)
+	{
+		if (PoolMgr)
+		{
+			PoolMgr->SpawnFromPool(BeforeEffect2Class, GetActorLocation(), GetActorRotation());
+		}
+	}
+
+	FTimerHandle TimerHandle;
+	GetWorldTimerManager().SetTimer(TimerHandle, this, &AAOEExplosion::Explode, ExplosionDelay, false);
+}
+
+void AAOEExplosion::OnReturnToPool()
+{
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+	SetActorTickEnabled(false);
+
+	GetWorldTimerManager().ClearAllTimersForObject(this); // 타이머 해제
 }
 
 // Called when the game starts or when spawned
 void AAOEExplosion::BeginPlay()
 {
 	Super::BeginPlay();
-	UE_LOG(LogTemp, Warning, TEXT("AOE Actor Spawned!"));
-	if (BeforeEffect1)
+	if (!bUsePooling)
 	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), BeforeEffect1, GetActorLocation(), GetActorRotation(), FVector(1.0f), true);
+		TRACE_BOOKMARK(TEXT("AOE_Spawn"));
+		if (BeforeEffect1)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), BeforeEffect1, GetActorLocation(), GetActorRotation(), FVector(1.0f), true);
+		}
+		if (BeforeEffect2)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), BeforeEffect2, GetActorLocation(), GetActorRotation(), FVector(1.0f), true);
+		}
+		FTimerHandle TimerHandle;
+		GetWorldTimerManager().SetTimer(TimerHandle, this, &AAOEExplosion::Explode, ExplosionDelay, false);
 	}
-	if (BeforeEffect2)
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), BeforeEffect2, GetActorLocation(), GetActorRotation(), FVector(1.0f), true);
-	}
-	FTimerHandle TimerHandle;
-	GetWorldTimerManager().SetTimer(TimerHandle, this, &AAOEExplosion::Explode, ExplosionDelay, false);
 }
 
 // Called every frame
@@ -42,7 +83,15 @@ void AAOEExplosion::Explode()
 {
 	if (ExplosionEffect && HasAuthority())
 	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, GetActorLocation(), GetActorRotation(), FVector(1.0f));
+		if (bUsePooling && ExplosionEffectClass && PoolMgr)
+		{
+			PoolMgr->SpawnFromPool(ExplosionEffectClass, GetActorLocation(), GetActorRotation());
+		}
+		else
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, GetActorLocation(), GetActorRotation(), FVector(1.0f));
+		}
+
 		FTimerHandle TimerHandle;
 		GetWorldTimerManager().SetTimer(TimerHandle, this, &AAOEExplosion::AttackTrace, TraceDelay, false);
 	}
@@ -154,7 +203,19 @@ void AAOEExplosion::AttackTrace()
 			}
 		}
 	}
-
 	// DrawDebugSphere(GetWorld(), GetActorLocation(), AttackRadius, 32, FColor::Red, false, 2.0f);
-	Destroy();
+	if (bUsePooling)
+	{
+		if (UWorld *World = GetWorld())
+		{
+			if (PoolMgr)
+			{
+				PoolMgr->ReturnToPool(this);
+				TRACE_BOOKMARK(TEXT("AOE_Return_Pooling"));
+				return; // 반환했으므로 함수 종료
+			}
+		}
+	}
+	TRACE_BOOKMARK(TEXT("AOE_Destroy"));
+	Destroy(); // 혹시 모르니까 유지
 }

@@ -32,7 +32,10 @@ void AEnemyBase::PlayMeshJitter(float Intensity, float Duration)
 }
 void AEnemyBase::OnHealthChangedReceived(float CurrentHealth, float MaxHealth)
 {
-	BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
+	if (BossHealthBar)
+	{
+		BossHealthBar->SetHealthPercent(CurrentHealth / MaxHealth);
+	}
 	if (CurrentHealth <= 0.0)
 	{
 		Die();
