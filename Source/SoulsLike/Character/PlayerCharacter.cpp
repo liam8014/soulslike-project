@@ -72,7 +72,7 @@ void APlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 	InitComponents();
 	SetupBindings();
-
+	
 	PlayerController = Cast<APlayerController>(GetController());
 	if (PlayerController)
 	{

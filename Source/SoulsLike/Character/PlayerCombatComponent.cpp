@@ -368,7 +368,7 @@ EHitResult UPlayerCombatComponent::Hit(const FGameplayHitInfo &HitInfo)
 			res = EHitResult::HR_CleanHit;
 		}
 		Owner->LaunchCharacter(KnockBackVector, true, true);
-		if (OwnerAttrComp->GetStamina() > 0)
+		if (OwnerAttrComp->GetStamina() > 0 || Owner->CheckMovementState(EMovementState::MS_Stun))
 		{
 			PlayHitMontage(HitInfo.AttackDirection);
 		}
@@ -378,8 +378,11 @@ EHitResult UPlayerCombatComponent::Hit(const FGameplayHitInfo &HitInfo)
 		}
 	}
 	// 가드/패링 이펙트 처리
-	UParticleSystem *ImpactEffect = (res == EHitResult::HR_Guard) ? PlayerData->GuardImpactVFX : (res == EHitResult::HR_Parry) ? PlayerData->ParryImpactVFX
-																															   : nullptr;
+	UParticleSystem *ImpactEffect = (res == EHitResult::HR_Guard)?
+	PlayerData->GuardImpactVFX :
+	(res == EHitResult::HR_Parry) ?
+			PlayerData->ParryImpactVFX :
+			nullptr;
 
 	if (ImpactEffect)
 	{
@@ -393,11 +396,14 @@ void UPlayerCombatComponent::PlayHitMontage(EAttackDirection HitAttackDirection)
 	if (!PlayerData)
 		return;
 
-	TObjectPtr<UAnimMontage> *const MontagePtr = bIsGuarding ? PlayerData->HitGuardMontages.Find(HitAttackDirection) : PlayerData->HitMontages.Find(HitAttackDirection);
+	UAnimMontage *const MontagePtr =
+		bIsGuarding ?
+		PlayerData->HitGuardMontages.Find(HitAttackDirection)->Get() :
+		PlayerData->HitMontages.Find(HitAttackDirection)->Get();
 
-	if (MontagePtr && *MontagePtr)
+	if (MontagePtr)
 	{
-		Owner->PlayAnimMontage(*MontagePtr, 0.9f);
+		Owner->PlayAnimMontage(MontagePtr, 0.9f);
 	}
 }
 
