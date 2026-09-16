@@ -152,16 +152,18 @@ void UPlayerCombatComponent::RequestAttack()
 
 void UPlayerCombatComponent::LightAttack()
 {
+	// 1. 컴포넌트 및 데이터 에셋 유효성 검사
 	if (!PlayerData || !OwnerAttrComp)
 		return;
 
-	// 스테미나 소모 체크
+	// 2. 스태미나 자원 검증 및 소비 (자원 부족 시 이동 상태 초기화 후 공격 취소)
 	if (!OwnerAttrComp->TryConsumeStamina(OwnerAttrComp->GetLightAttackStaminaCost()))
 	{
 		Owner->ResetMovement();
 		return;
 	}
 
+	// 3. 전투 상태(State) 전이 및 콤보 입력 버퍼 초기화
 	Owner->SetMovementState(EMovementState::MS_Attacking);
 	bCanCombo = false;
 
@@ -169,10 +171,12 @@ void UPlayerCombatComponent::LightAttack()
 	if (Montages.Num() == 0)
 		return;
 
+	// 4. 순환 구조를 활용한 콤보 인덱스 연산
 	CurrentAttackCombo = (CurrentAttackCombo + 1) % (Montages.Num() + 1);
 	if (CurrentAttackCombo == 0)
 		CurrentAttackCombo = 2;
 
+	// 5. 콤보 차수에 따른 피격 방향 동적 분기
 	switch (CurrentAttackCombo)
 	{
 	case 1:
@@ -185,20 +189,23 @@ void UPlayerCombatComponent::LightAttack()
 		break;
 	}
 
+	// 6. 애니메이션 노티파이에서 활용할 전투 메타데이터(데미지, 방향, VFX) 컴포넌트에 사전 주입
 	SetAttackAttribute(1.0f, 1.0f, AttackDirection, PlayerData->LightAttackImpactVFX);
 
 	UAnimMontage *SelectedMontage = nullptr;
 
+	// 7. 현재 이동 속도(물리 벡터)를 기반으로 대시 공격과 일반 콤보 공격을 동적으로 판별
 	if (Owner->GetVelocity().Size() >= (OwnerAttrComp->GetMaxSprintSpeed() * 0.85f))
 	{
 		SelectedMontage = PlayerData->DashAttackMontage;
 		CurrentAttackCombo = 1;
 	}
-	else if (Montages.IsValidIndex(CurrentAttackCombo - 1))
+	else if (Montages.IsValidIndex(CurrentAttackCombo - 1)) // 배열 Out of Bounds 방지
 	{
 		SelectedMontage = Montages[CurrentAttackCombo - 1];
 	}
 
+	// 8. 최종 실행 가능 상태(회피 중이 아님) 확인 후 데이터 주도적 애니메이션 재생
 	if (SelectedMontage && !bIsDodging)
 	{
 		Owner->PlayAnimMontage(SelectedMontage, PlayerData->LightAttackSpeed);
@@ -495,7 +502,6 @@ bool UPlayerCombatComponent::PerformAttackSweep(TArray<FHitResult> &OutHits)
 
 void UPlayerCombatComponent::ProcessHit(const FHitResult &HitResult)
 {
-
 	AActor *HitActor = HitResult.GetActor();
 
 	if (ProcessedActors.Contains(HitActor))
@@ -507,7 +513,8 @@ void UPlayerCombatComponent::ProcessHit(const FHitResult &HitResult)
 	{
 		ProcessedActors.Add(HitActor);
 		const float BasePower = OwnerAttrComp->GetBaseAttackPower();
-		HitEnemy->Hit(BasePower * DamageMultiplier, BasePower * StaminaMultiplier);
+		HitEnemy->Hit(BasePower * DamageMultiplier,
+			BasePower * StaminaMultiplier);
 		FRotator ActorRotation = Owner->GetActorRotation();
 		FRotator VFXRotation = FRotator::ZeroRotator;
 
